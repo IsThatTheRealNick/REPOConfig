@@ -116,12 +116,12 @@ namespace REPOConfig
             return repoConfigs;
         }
 
-        private static Action saveChanges;
+        private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
         private static REPOButton currentModButton;
         
         private static REPOPopupPage CreateMainModPage()
         {
-            saveChanges = null;
+            changedEntries.Clear();
             currentModButton = null;
             
             var mainModPage = new REPOPopupPage("Mods", mainModPage => {
@@ -132,10 +132,10 @@ namespace REPOConfig
                     var closePage = () =>
                     {
                         mainModPage.ClosePage(true);
-                        saveChanges = null;
+                        changedEntries.Clear();
                     };
                     
-                    if (saveChanges != null && currentModButton != null)
+                    if (changedEntries.Count > 0 && currentModButton != null)
                         currentModButton?.OpenDialog("Unsaved Changes", "You have unsaved changes, are you sure you want to exit?", closePage);
                     else
                         closePage.Invoke();
@@ -180,14 +180,16 @@ namespace REPOConfig
 
                     modPage.ClearButtons();
                     
-                    saveChanges = null;
+                    changedEntries.Clear();
                     currentModButton = modButtonTemp;
 
                     var saveChangesButton = new REPOButton("Save Changes", null);
                     saveChangesButton.SetOnClick(() =>
                     {
-                        saveChanges?.Invoke();
-                        saveChanges = null;
+                        foreach (var entry in changedEntries)
+                            entry.Key.BoxedValue = entry.Value;
+                        
+                        changedEntries.Clear();
                     });
 
                     var resetToDefaultButton = new REPOButton("Reset", null);
@@ -201,7 +203,7 @@ namespace REPOConfig
                                 foreach (var entry in configData.Select(config => config.configEntryBase))
                                     entry.BoxedValue = entry.DefaultValue;
                                 
-                                saveChanges = null;
+                                changedEntries.Clear();
                                 currentModButton = null;
                                 
                                 modButtonTemp.onClick.Invoke();
@@ -219,13 +221,20 @@ namespace REPOConfig
                         {
                             case ConfigEntry<bool> boolEntry:
                             {
-                                modPage.AddElementToScrollView(new REPOToggle(boolEntry.Definition.Key, b => saveChanges += () => boolEntry.Value = b, "ON", "OFF", boolEntry.Value), new Vector2(120f, yPosition));
+                                modPage.AddElementToScrollView(new REPOToggle(boolEntry.Definition.Key, b =>
+                                {
+                                    changedEntries[boolEntry] = b;
+                                }, "ON", "OFF", boolEntry.Value), new Vector2(120f, yPosition));
                                 yPosition -= 34f;
                                 break;
                             }
                             case ConfigEntry<int> intEntry:
                             {
-                                var repoSlider = new REPOSlider(intEntry.Definition.Key, null, f => saveChanges += () => intEntry.Value = Convert.ToInt32(f), 0, 1, 0, intEntry.Value);
+                                var repoSlider = new REPOSlider(intEntry.Definition.Key, null, f =>
+                                {
+                                    changedEntries[intEntry] = Convert.ToInt32(f);
+                                    
+                                }, 0, 1, 0, intEntry.Value);
 
                                 if (intEntry.Description.AcceptableValues is AcceptableValueRange<int> range)
                                 {
@@ -251,7 +260,10 @@ namespace REPOConfig
                             }
                             case ConfigEntry<float> floatEntry:
                             {
-                                var repoSlider = new REPOSlider(floatEntry.Definition.Key, null, f => saveChanges += () => floatEntry.Value = f, 0, 0, 0, floatEntry.Value);
+                                var repoSlider = new REPOSlider(floatEntry.Definition.Key, null, f =>
+                                {
+                                    changedEntries[floatEntry] = f;
+                                }, 0, 0, 0, floatEntry.Value);
 
                                 var defaultValue = (float)floatEntry.DefaultValue;
 
@@ -304,7 +316,7 @@ namespace REPOConfig
                     modPage.OpenPage(true);
                 };
                 
-                if (saveChanges != null)
+                if (changedEntries.Count > 0)
                     currentModButton.OpenDialog("Unsaved Changes", "You have unsaved changes, are you sure you want to exit?", openPage);
                 else
                     openPage.Invoke();
