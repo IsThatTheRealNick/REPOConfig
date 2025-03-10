@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Configuration;
@@ -13,13 +14,15 @@ using UnityEngine;
 
 namespace REPOConfig
 {
-    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.2")]
+    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.3")]
     internal sealed class Entry : BaseUnityPlugin
     {
         private const string MOD_NAME = "REPO Config";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
 
+        private static readonly Regex titleCaseRegex = new("(?<!^)([A-Z])");
+        
         private static ConfigEntry<bool> showInGame;
         
         private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
@@ -52,11 +55,19 @@ namespace REPOConfig
             foreach (var plugin in Chainloader.PluginInfos.Values)
             {
                 var configEntries = new List<ConfigEntryBase>();
+
+                foreach (var configEntryBase in plugin.Instance.Config.Select(configEntry => configEntry.Value))
+                {
+                    
+                    if (configEntryBase.Description != null && configEntryBase.Description.Tags.Contains("HideREPOConfig"))
+                        continue;
+                    
+                    configEntries.Add(configEntryBase);    
+                }
                 
-                configEntries.AddRange(plugin.Instance.Config.Select(configEntry => configEntry.Value));
                 
                 if (configEntries.Count > 0)
-                    repoConfigs.TryAdd(plugin.Metadata.Name, configEntries.ToArray());
+                    repoConfigs.TryAdd(Regex.Replace(titleCaseRegex.Replace(plugin.Metadata.Name, " $1"), @"\s+", " "), configEntries.ToArray());
             }
 
             return repoConfigs;
@@ -160,14 +171,15 @@ namespace REPOConfig
 
                     foreach (var configEntryBase in ConfigEntryBases)
                     {
+                        var name = Regex.Replace(titleCaseRegex.Replace(configEntryBase.Definition.Key, " $1"), @"\s+", " ");
                         var description = configEntryBase.Description.Description;
-
-                        if (description.Length > 70)
+                        
+                        if (description.Length > 60)
                         {
-                            var cutOffPoint = description.LastIndexOf(' ', 67);
+                            var cutOffPoint = description.LastIndexOf(' ', 57);
 
                             if (cutOffPoint == -1)
-                                cutOffPoint = 67;
+                                cutOffPoint = 57;
                             
                             description = $"{description[..cutOffPoint]}...";
                         }
@@ -176,7 +188,7 @@ namespace REPOConfig
                         {
                             case ConfigEntry<bool> boolEntry:
                             {
-                                modPage.AddElementToScrollView(new REPOToggle(boolEntry.Definition.Key, b =>
+                                modPage.AddElementToScrollView(new REPOToggle(name, b =>
                                 {
                                     changedEntries[boolEntry] = b;
                                 }, "ON", "OFF", boolEntry.Value), new Vector2(120f, yPosition));
@@ -184,7 +196,7 @@ namespace REPOConfig
                                 break;
                             }
                             case ConfigEntry<int> intEntry: {
-                                var repoSlider = new REPOSlider(intEntry.Definition.Key, description, f => {
+                                var repoSlider = new REPOSlider(name, description, f => {
                                     changedEntries[intEntry] = Convert.ToInt32(f);
                                     
                                 }, 0, 1, 0, intEntry.Value);
@@ -213,7 +225,7 @@ namespace REPOConfig
                             }
                             case ConfigEntry<float> floatEntry:
                             {
-                                var repoSlider = new REPOSlider(floatEntry.Definition.Key, description, f =>
+                                var repoSlider = new REPOSlider(name, description, f =>
                                 {
                                     changedEntries[floatEntry] = f;
                                 }, 0, 0, 0, floatEntry.Value);
@@ -244,10 +256,7 @@ namespace REPOConfig
                                         break;
                                     }
                                 }
-
-                                /*if (configEntryBase != null)
-                                    repoSlider.SetPrecision(precision);*/
-
+                                
                                 var defaultValueAsString = defaultValue.ToString(CultureInfo.InvariantCulture);
 
                                 var decimalIndex = defaultValueAsString.IndexOf('.');
@@ -267,7 +276,7 @@ namespace REPOConfig
                                 if (stringEntry.Description.AcceptableValues is not AcceptableValueList<string> valueList || valueList.AcceptableValues.Length == 0)
                                     continue;
                                 
-                                var repoSlider = new REPOSlider(stringEntry.Definition.Key, description, i => {
+                                var repoSlider = new REPOSlider(name, description, i => {
                                     changedEntries[stringEntry] = valueList.AcceptableValues[i];
                                     
                                 }, stringEntry.Value, valueList.AcceptableValues);
@@ -291,7 +300,7 @@ namespace REPOConfig
         
         private void Awake()
         {
-            showInGame = Config.Bind("General", "Show In Game", true);
+            showInGame = Config.Bind("General", "Show In Game", true, new ConfigDescription(string.Empty, null, "HideREPOConfig"));
             
             if (!showInGame.Value)
                 return;
