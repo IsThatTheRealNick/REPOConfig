@@ -46,94 +46,78 @@ namespace REPOConfig
             var repoConfigs = new Dictionary<string, REPOConfigData[]>();
             
             var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic).ToArray();
+            
             foreach (var plugin in Chainloader.PluginInfos.Values)
             {
-
                 var configEntries = new List<REPOConfigData>();
 
-                if (plugin.Instance != null)
-                {
-                    GetConfigEntriesFromPluginInstance(plugin.Instance, configEntries);
-                }
+                if (plugin.Instance)
+                    configEntries.AddRange(plugin.Instance.Config.Select(configEntry => new REPOConfigData { configEntryBase = configEntry.Value, }));
                 else
-                {
-                    WalkTypesForConfigEntries(plugin, configEntries, assemblies);
-                }
+                    WalkTypesForConfigEntries(plugin, configEntries);
                 
-
                 if (configEntries.Count > 0)
                     repoConfigs.TryAdd(plugin.Metadata.Name, configEntries.ToArray());
             }
 
             return repoConfigs;
-        }
-
-        private static void GetConfigEntriesFromPluginInstance(BaseUnityPlugin pluginInstance, List<REPOConfigData> configEntries)
-        {
-            foreach (var configEntry in pluginInstance.Config)
+            
+            void WalkTypesForConfigEntries(PluginInfo plugin, List<REPOConfigData> configEntries)
             {
-                configEntries.Add(new REPOConfigData
+                const BindingFlags ALL_BINDING_FLAGS = (BindingFlags) 60;
+                var pluginAssembly = assemblies.Single(assembly => assembly.Location == plugin.Location);
+
+                foreach (var type in pluginAssembly.GetTypes())
                 {
-                    configEntryBase = configEntry.Value,
-                });
-            }
-        }
-
-        private static void WalkTypesForConfigEntries(PluginInfo? plugin, List<REPOConfigData> configEntries, Assembly[]? assemblies)
-        {
-            const BindingFlags ALL_BINDING_FLAGS = (BindingFlags)60;
-            var pluginAssembly = assemblies.Single(assembly => assembly.Location == plugin.Location);
-
-            foreach (var type in pluginAssembly.GetTypes())
-            {
-                foreach (var field in type.GetFields(ALL_BINDING_FLAGS))
-                {
-                    var isConfigEntryBase = field.FieldType.BaseType == typeof(ConfigEntryBase);
-
-                    if (!isConfigEntryBase || field.GetCustomAttribute<CompilerGeneratedAttribute>() != null)
-                        continue;
-
-                    object instance = null;
-
-                    if (type.BaseType == typeof(BaseUnityPlugin))
-                        instance = plugin.Instance;
-
-                    if (instance == null && !field.IsStatic)
+                    foreach (var field in type.GetFields(ALL_BINDING_FLAGS))
                     {
-                        logger.LogDebug($"Field \"{field.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
-                        continue;
+                        var isConfigEntryBase = field.FieldType.BaseType == typeof(ConfigEntryBase);
+
+                        if (!isConfigEntryBase || field.GetCustomAttribute<CompilerGeneratedAttribute>() != null)
+                            continue;
+
+                        object instance = null;
+
+                        if (type.BaseType == typeof(BaseUnityPlugin))
+                            instance = plugin.Instance;
+
+                        if (instance == null && !field.IsStatic)
+                        {
+                            logger.LogDebug($"Field \"{field.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
+                            continue;
+                        }
+
+                        if (field.GetValue(instance) is not ConfigEntryBase configEntryBase)
+                            logger.LogDebug($"Field \"{field.Name}\" cannot be null, it will not be visible in the settings menu!");
+                        else
+                            configEntries.Add(new REPOConfigData { repoConfigEntry = field.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
                     }
 
-                    if (field.GetValue(instance) is not ConfigEntryBase configEntryBase)
-                        logger.LogDebug($"Field \"{field.Name}\" cannot be null, it will not be visible in the settings menu!");
-                    else
-                        configEntries.Add(new REPOConfigData { repoConfigEntry = field.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
-                }
-
-                foreach (var property in type.GetProperties(ALL_BINDING_FLAGS))
-                {
-                    var isConfigEntryBase = property.PropertyType.BaseType == typeof(ConfigEntryBase);
-
-                    if (!isConfigEntryBase)
-                        continue;
-
-                    var getMethod = property.GetGetMethod(true);
-
-                    object instance = null;
-
-                    if (type.BaseType == typeof(BaseUnityPlugin))
-                        instance = plugin.Instance;
-
-                    if (instance == null && !getMethod.IsStatic)
+                    foreach (var property in type.GetProperties(ALL_BINDING_FLAGS))
                     {
-                        logger.LogDebug($"Property \"{property.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
-                        continue;
-                    }
+                        var isConfigEntryBase = property.PropertyType.BaseType == typeof(ConfigEntryBase);
 
-                    if (getMethod.Invoke(null, null) is not ConfigEntryBase configEntryBase)
-                        logger.LogDebug($"Property \"{property.Name}\" cannot be null, it will not be visible in the settings menu!");
-                    else
-                        configEntries.Add(new REPOConfigData { repoConfigEntry = property.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
+                        if (!isConfigEntryBase)
+                            continue;
+
+                        var getMethod = property.GetGetMethod(true);
+
+                        object instance = null;
+
+                        if (type.BaseType == typeof(BaseUnityPlugin))
+                            instance = plugin.Instance;
+
+                        if (instance == null && !getMethod.IsStatic)
+                        {
+                            logger.LogDebug($"Property \"{property.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
+                            continue;
+                        }
+
+                        if (getMethod.Invoke(null, null) is not ConfigEntryBase configEntryBase)
+                            logger.LogDebug($"Property \"{property.Name}\" cannot be null, it will not be visible in the settings menu!");
+                        else
+                            configEntries.Add(new REPOConfigData { repoConfigEntry = property.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
+                    }
                 }
             }
         }
