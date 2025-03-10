@@ -14,14 +14,12 @@ using UnityEngine;
 
 namespace REPOConfig
 {
-    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.3")]
+    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.4")]
     internal sealed class Entry : BaseUnityPlugin
     {
         private const string MOD_NAME = "REPO Config";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
-
-        private static readonly Regex titleCaseRegex = new("(?<!^)([A-Z])");
         
         private static ConfigEntry<bool> showInGame;
         
@@ -67,7 +65,7 @@ namespace REPOConfig
                 
                 
                 if (configEntries.Count > 0)
-                    repoConfigs.TryAdd(Regex.Replace(titleCaseRegex.Replace(plugin.Metadata.Name, " $1"), @"\s+", " "), configEntries.ToArray());
+                    repoConfigs.TryAdd(FixNaming(plugin.Metadata.Name), configEntries.ToArray());
             }
 
             return repoConfigs;
@@ -171,7 +169,7 @@ namespace REPOConfig
 
                     foreach (var configEntryBase in ConfigEntryBases)
                     {
-                        var name = Regex.Replace(titleCaseRegex.Replace(configEntryBase.Definition.Key, " $1"), @"\s+", " ");
+                        var name = FixNaming(configEntryBase.Definition.Key);
                         var description = configEntryBase.Description.Description;
                         
                         if (description.Length > 60)
@@ -296,6 +294,16 @@ namespace REPOConfig
                 else
                     openPage.Invoke();
             });
+        }
+
+        private static string FixNaming(string input)
+        {
+            input = Regex.Replace(input, "([a-z])([A-Z])", "$1 $2");
+            input = Regex.Replace(input, "([A-Z])([A-Z][a-z])", "$1 $2");
+            input = Regex.Replace(input, @"\s+", " ");
+            input = Regex.Replace(input, @"([A-Z]\.)\s([A-Z]\.)", "$1$2");
+
+            return input.Trim();
         }
         
         private void Awake()
