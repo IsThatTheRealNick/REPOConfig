@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Configuration;
@@ -15,12 +13,18 @@ using UnityEngine;
 
 namespace REPOConfig
 {
-    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.2")]
+    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.3")]
     internal sealed class Entry : BaseUnityPlugin
     {
         private const string MOD_NAME = "REPO Config";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
+
+        private static ConfigEntry<bool> showInGame;
+        
+        private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
+        
+        private static REPOButton currentModButton;
         
         private static void MenuPageMain_StartHook(Action<MenuPageMain> orig, MenuPageMain self)
         {
@@ -41,89 +45,22 @@ namespace REPOConfig
             orig.Invoke(self);
         }
         
-        private static Dictionary<string, REPOConfigData[]> GetModConfigEntries()
+        private static Dictionary<string, ConfigEntryBase[]> GetModConfigEntries()
         {
-            var repoConfigs = new Dictionary<string, REPOConfigData[]>();
-            
-            var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic).ToArray();
+            var repoConfigs = new Dictionary<string, ConfigEntryBase[]>();
             
             foreach (var plugin in Chainloader.PluginInfos.Values)
             {
-                var configEntries = new List<REPOConfigData>();
-
-                if (plugin.Instance)
-                    configEntries.AddRange(plugin.Instance.Config.Select(configEntry => new REPOConfigData { configEntryBase = configEntry.Value, }));
-                else
-                    WalkTypesForConfigEntries(plugin, configEntries);
+                var configEntries = new List<ConfigEntryBase>();
+                
+                configEntries.AddRange(plugin.Instance.Config.Select(configEntry => configEntry.Value));
                 
                 if (configEntries.Count > 0)
                     repoConfigs.TryAdd(plugin.Metadata.Name, configEntries.ToArray());
             }
 
             return repoConfigs;
-            
-            void WalkTypesForConfigEntries(PluginInfo plugin, List<REPOConfigData> configEntries)
-            {
-                const BindingFlags ALL_BINDING_FLAGS = (BindingFlags) 60;
-                var pluginAssembly = assemblies.Single(assembly => assembly.Location == plugin.Location);
-
-                foreach (var type in pluginAssembly.GetTypes())
-                {
-                    foreach (var field in type.GetFields(ALL_BINDING_FLAGS))
-                    {
-                        var isConfigEntryBase = field.FieldType.BaseType == typeof(ConfigEntryBase);
-
-                        if (!isConfigEntryBase || field.GetCustomAttribute<CompilerGeneratedAttribute>() != null)
-                            continue;
-
-                        object instance = null;
-
-                        if (type.BaseType == typeof(BaseUnityPlugin))
-                            instance = plugin.Instance;
-
-                        if (instance == null && !field.IsStatic)
-                        {
-                            logger.LogDebug($"Field \"{field.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
-                            continue;
-                        }
-
-                        if (field.GetValue(instance) is not ConfigEntryBase configEntryBase)
-                            logger.LogDebug($"Field \"{field.Name}\" cannot be null, it will not be visible in the settings menu!");
-                        else
-                            configEntries.Add(new REPOConfigData { repoConfigEntry = field.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
-                    }
-
-                    foreach (var property in type.GetProperties(ALL_BINDING_FLAGS))
-                    {
-                        var isConfigEntryBase = property.PropertyType.BaseType == typeof(ConfigEntryBase);
-
-                        if (!isConfigEntryBase)
-                            continue;
-
-                        var getMethod = property.GetGetMethod(true);
-
-                        object instance = null;
-
-                        if (type.BaseType == typeof(BaseUnityPlugin))
-                            instance = plugin.Instance;
-
-                        if (instance == null && !getMethod.IsStatic)
-                        {
-                            logger.LogDebug($"Property \"{property.Name}\" must be static or instanced under the BaseUnityPlugin class for it to be visible in the settings menu!");
-                            continue;
-                        }
-
-                        if (getMethod.Invoke(null, null) is not ConfigEntryBase configEntryBase)
-                            logger.LogDebug($"Property \"{property.Name}\" cannot be null, it will not be visible in the settings menu!");
-                        else
-                            configEntries.Add(new REPOConfigData { repoConfigEntry = property.GetCustomAttribute<REPOConfigEntryAttribute>(), configEntryBase = configEntryBase });
-                    }
-                }
-            }
         }
-
-        private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
-        private static REPOButton currentModButton;
         
         private static REPOPopupPage CreateMainModPage()
         {
@@ -153,9 +90,9 @@ namespace REPOConfig
             
             for (var i = 0; i < configEntries.Count; i++)
             {
-                var (modName, configData) = configEntries.ElementAt(i);
+                var (modName, configEntryBases) = configEntries.ElementAt(i);
                 
-                CreateModPage(modName, configData, out var modButton);
+                CreateModPage(modName, configEntryBases, out var modButton);
                 
                 mainModPage.AddElementToScrollView(modButton, new Vector2(0f, -80f + i * -34f));
             }
@@ -163,7 +100,7 @@ namespace REPOConfig
             return mainModPage;
         }
 
-        private static void CreateModPage(string modName, REPOConfigData[] configData, out REPOButton modButton)
+        private static void CreateModPage(string modName, ConfigEntryBase[] ConfigEntryBases, out REPOButton modButton)
         {
             var modPage = new REPOPopupPage(modName, modPage => {
                 modPage.SetLocalPosition(new Vector2(500.52f, 190.6f));
@@ -206,7 +143,7 @@ namespace REPOConfig
                             $"Reset all of {modName}{(modName.ToLower().EndsWith('s') ? "'" : "'s")} settings?",
                             () =>
                             {
-                                foreach (var entry in configData.Select(config => config.configEntryBase))
+                                foreach (var entry in ConfigEntryBases)
                                     entry.BoxedValue = entry.DefaultValue;
                                 
                                 changedEntries.Clear();
@@ -221,9 +158,21 @@ namespace REPOConfig
 
                     var yPosition = -80f;
 
-                    foreach (var config in configData)
+                    foreach (var configEntryBase in ConfigEntryBases)
                     {
-                        switch (config.configEntryBase)
+                        var description = configEntryBase.Description.Description;
+
+                        if (description.Length > 70)
+                        {
+                            var cutOffPoint = description.LastIndexOf(' ', 67);
+
+                            if (cutOffPoint == -1)
+                                cutOffPoint = 67;
+                            
+                            description = $"{description[..cutOffPoint]}...";
+                        }
+                        
+                        switch (configEntryBase)
                         {
                             case ConfigEntry<bool> boolEntry:
                             {
@@ -231,13 +180,11 @@ namespace REPOConfig
                                 {
                                     changedEntries[boolEntry] = b;
                                 }, "ON", "OFF", boolEntry.Value), new Vector2(120f, yPosition));
-                                yPosition -= 34f;
+                                yPosition -= 30f;
                                 break;
                             }
-                            case ConfigEntry<int> intEntry:
-                            {
-                                var repoSlider = new REPOSlider(intEntry.Definition.Key, null, f =>
-                                {
+                            case ConfigEntry<int> intEntry: {
+                                var repoSlider = new REPOSlider(intEntry.Definition.Key, description, f => {
                                     changedEntries[intEntry] = Convert.ToInt32(f);
                                     
                                 }, 0, 1, 0, intEntry.Value);
@@ -261,12 +208,12 @@ namespace REPOConfig
                                 }
 
                                 modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-                                yPosition -= 34f;
+                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 32f : 54f;
                                 break;
                             }
                             case ConfigEntry<float> floatEntry:
                             {
-                                var repoSlider = new REPOSlider(floatEntry.Definition.Key, null, f =>
+                                var repoSlider = new REPOSlider(floatEntry.Definition.Key, description, f =>
                                 {
                                     changedEntries[floatEntry] = f;
                                 }, 0, 0, 0, floatEntry.Value);
@@ -298,22 +245,35 @@ namespace REPOConfig
                                     }
                                 }
 
-                                if (config.repoConfigEntry != null)
-                                    repoSlider.SetPrecision(config.repoConfigEntry.precision);
+                                /*if (configEntryBase != null)
+                                    repoSlider.SetPrecision(precision);*/
+
+                                var defaultValueAsString = defaultValue.ToString(CultureInfo.InvariantCulture);
+
+                                var decimalIndex = defaultValueAsString.IndexOf('.');
+
+                                if (decimalIndex == -1)
+                                    repoSlider.SetPrecision(0);
                                 else
-                                {
-                                    var defaultValueAsString = defaultValue.ToString(CultureInfo.InvariantCulture);
-
-                                    var decimalIndex = defaultValueAsString.IndexOf('.');
-
-                                    if (decimalIndex == -1)
-                                        repoSlider.SetPrecision(0);
-                                    else
-                                        repoSlider.SetPrecision(defaultValueAsString.Length - decimalIndex - 1);
-                                }
-
+                                    repoSlider.SetPrecision(defaultValueAsString.Length - decimalIndex - 1);
+                                
                                 modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-                                yPosition -= 34f;
+
+                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 32f : 54f;
+                                break;
+                            }
+                            case ConfigEntry<string> stringEntry:
+                            {
+                                if (stringEntry.Description.AcceptableValues is not AcceptableValueList<string> valueList || valueList.AcceptableValues.Length == 0)
+                                    continue;
+                                
+                                var repoSlider = new REPOSlider(stringEntry.Definition.Key, description, i => {
+                                    changedEntries[stringEntry] = valueList.AcceptableValues[i];
+                                    
+                                }, stringEntry.Value, valueList.AcceptableValues);
+                                
+                                modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
+                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 32f : 54f;
                                 break;
                             }
                         }
@@ -331,6 +291,11 @@ namespace REPOConfig
         
         private void Awake()
         {
+            showInGame = Config.Bind("General", "Show In Game", true);
+            
+            if (!showInGame.Value)
+                return;
+            
             logger.LogDebug("Hooking `MenuPageMain.Start`");
             new Hook(AccessTools.Method(typeof(MenuPageMain), "Start"), MenuPageMain_StartHook);
             
