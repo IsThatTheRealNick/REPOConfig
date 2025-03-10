@@ -79,8 +79,7 @@ namespace REPOConfig
             var mainModPage = new REPOPopupPage("Mods", mainModPage => {
                 mainModPage.SetBackgroundDimming(true);
                 mainModPage.SetMaskPadding(new Padding(0, 70, 20, 50));
-                mainModPage.AddElementToPage(new REPOButton("Back", () =>
-                {
+                mainModPage.AddElementToPage(new REPOButton("Back", () => {
                     var closePage = () =>
                     {
                         mainModPage.ClosePage(true);
