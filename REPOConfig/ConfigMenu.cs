@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using MenuLib;
-using MenuLib.MonoBehaviors;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -92,16 +91,12 @@ internal sealed class ConfigMenu
                 modPage.SetSize(new Vector2(310f, 342f));
                 modPage.SetMaskPadding(new Padding(0, 70, 0, 50));
             });
-            
 
-            var modButtonTemp = modButton = new REPOButton(modName, null);
-            
-            if (modName.Length > 19)
-            {
-                var textScroller = modButtonTemp.AddComponent<REPOTextScroller>();
-                textScroller.textMeshPro = modButtonTemp.GetButtonTMP();
-                textScroller.maxCharacters = 19;
-            }
+            var shortName = modName;
+            if (shortName.Length > 19)
+                shortName = $"{shortName[..16]}...";
+
+            var modButtonTemp = modButton = new REPOButton(shortName, null);
             
             modButton.SetOnClick(() => {
                 if (currentPageModButton == modButtonTemp)
@@ -146,17 +141,7 @@ internal sealed class ConfigMenu
                         var nextEntryType = configEntryBases.ElementAtOrDefault(i + 1)?.SettingType;
                         
                         var name = FixNaming(configEntryBase.Definition.Key);
-                        var description = configEntryBase.Description.Description;
-
-                        if (description.Length > 60)
-                        {
-                            var cutOffPoint = description.LastIndexOf(' ', 57);
-
-                            if (cutOffPoint == -1)
-                                cutOffPoint = 57;
-
-                            description = $"{description[..cutOffPoint]}...";
-                        }
+                        var description = configEntryBase.Description.Description.Replace('\n', ' ');
 
                         switch (configEntryBase)
                         {
