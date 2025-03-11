@@ -9,7 +9,6 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>disable</Nullable>
         <LangVersion>latest</LangVersion>
-        <RootNamespace>MenuLib</RootNamespace>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
