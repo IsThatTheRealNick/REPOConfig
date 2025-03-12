@@ -135,11 +135,8 @@ internal sealed class ConfigMenu
 
                     var yPosition = -80f;
 
-                    for (var i = 0; i < configEntryBases.Length; i++)
+                    foreach (var configEntryBase in configEntryBases)
                     {
-                        var configEntryBase = configEntryBases[i];
-                        var nextEntryType = configEntryBases.ElementAtOrDefault(i + 1)?.SettingType;
-                        
                         var name = FixNaming(configEntryBase.Definition.Key);
                         var description = configEntryBase.Description.Description.Replace('\n', ' ');
 
@@ -157,6 +154,12 @@ internal sealed class ConfigMenu
                                 var repoSlider = new REPOSlider(name, description,
                                     f => { changedEntries[intEntry] = Convert.ToInt32(f); }, 0, 1, 0, intEntry.Value);
 
+                                if (description.Length > 43)
+                                {
+                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                    repoSlider.ToggleScroll(true);
+                                }
+                                
                                 if (intEntry.Description.AcceptableValues is AcceptableValueRange<int> range)
                                 {
                                     repoSlider.SetMin(range.MinValue);
@@ -183,6 +186,12 @@ internal sealed class ConfigMenu
                                 var repoSlider = new REPOSlider(name, description,
                                     f => { changedEntries[floatEntry] = f; }, 0, 0, 0, floatEntry.Value);
 
+                                if (description.Length > 43)
+                                {
+                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                    repoSlider.ToggleScroll(true);
+                                }
+                                
                                 var defaultValue = (float)floatEntry.DefaultValue;
 
                                 switch (floatEntry.Description.AcceptableValues)

@@ -6,7 +6,6 @@ using BepInEx.Logging;
 using HarmonyLib;
 using MonoMod.RuntimeDetour;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace REPOConfig
 {
@@ -16,6 +15,8 @@ namespace REPOConfig
         private const string MOD_NAME = "REPO Config";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
+        
+        internal static ConfigEntry<float> descriptionScrollSpeed;
         
         private static ConfigEntry<bool> showInGame;
         
@@ -37,18 +38,12 @@ namespace REPOConfig
             
             orig.Invoke(self);
         }
-
-        private static ConfigEntry<Key> test;
-        private static ConfigEntry<float> test3;
-        private static ConfigEntry<Key> test2;
         
         private void Awake()
         {
+            descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));
             showInGame = Config.Bind("General", "Show In Game", true, new ConfigDescription(string.Empty, null, "HideREPOConfig"));
-            test = Config.Bind("test", "test", Key.A);
-            test3 = Config.Bind("test", "test3", 2f);
-            test2 = Config.Bind("test", "test 2", Key.B);
-            
+
             if (!showInGame.Value)
                 return;
             
