@@ -135,14 +135,17 @@ internal sealed class ConfigMenu
 
                     var yPosition = -80f;
 
-                    foreach (var configEntryBase in configEntryBases)
+                    for (var i = 0; i < configEntryBases.Length; i++)
                     {
+                        var configEntryBase = configEntryBases[i];
+                        
                         var name = FixNaming(configEntryBase.Definition.Key);
                         var description = configEntryBase.Description.Description.Replace('\n', ' ');
 
                         switch (configEntryBase)
                         {
-                            case ConfigEntry<bool> boolEntry: {
+                            case ConfigEntry<bool> boolEntry:
+                            {
                                 modPage.AddElementToScrollView(
                                     new REPOToggle(name, b => { changedEntries[boolEntry] = b; }, "ON", "OFF",
                                         boolEntry.Value), new Vector2(120f, yPosition));
@@ -159,7 +162,7 @@ internal sealed class ConfigMenu
                                     repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
                                     repoSlider.ToggleScroll(true);
                                 }
-                                
+
                                 if (intEntry.Description.AcceptableValues is AcceptableValueRange<int> range)
                                 {
                                     repoSlider.SetMin(range.MinValue);
@@ -182,7 +185,8 @@ internal sealed class ConfigMenu
                                 yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
                                 break;
                             }
-                            case ConfigEntry<float> floatEntry: {
+                            case ConfigEntry<float> floatEntry:
+                            {
                                 var repoSlider = new REPOSlider(name, description,
                                     f => { changedEntries[floatEntry] = f; }, 0, 0, 0, floatEntry.Value);
 
@@ -191,7 +195,7 @@ internal sealed class ConfigMenu
                                     repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
                                     repoSlider.ToggleScroll(true);
                                 }
-                                
+
                                 var defaultValue = (float)floatEntry.DefaultValue;
 
                                 switch (floatEntry.Description.AcceptableValues)
@@ -251,9 +255,14 @@ internal sealed class ConfigMenu
                             {
                                 var repoKeybind = new REPOKeybind(name, key => changedEntries[keyEntry] = key,
                                     keyEntry.Value);
-
+                                
+                                if (configEntryBases.ElementAtOrDefault(i - 1)?.SettingType == typeof(Key))
+                                    yPosition -= 11;
+                                else
+                                    yPosition -= 5;
+                                
                                 modPage.AddElementToScrollView(repoKeybind, new Vector2(15f, yPosition));
-                                yPosition -= 34f;
+                                yPosition -= 36f;
                                 break;
                             }
                         }
