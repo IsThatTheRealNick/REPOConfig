@@ -15,7 +15,7 @@ internal sealed class ConfigMenu
 {
     private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
     private static REPOButton currentPageModButton;
-
+    
     internal static void Initialize()
     {
         MenuAPI.AddElementToMainMenu(new REPOButton("Mods", () => CreateConfigMenu().OpenPage(false)), new Vector2(48.3f, 55.5f));
@@ -60,244 +60,244 @@ internal sealed class ConfigMenu
     }
     
     private static Dictionary<string, ConfigEntryBase[]> GetModConfigEntries()
+    {
+        var repoConfigs = new Dictionary<string, ConfigEntryBase[]>();
+        
+        foreach (var plugin in Chainloader.PluginInfos.Values)
         {
-            var repoConfigs = new Dictionary<string, ConfigEntryBase[]>();
-            
-            foreach (var plugin in Chainloader.PluginInfos.Values)
+            var configEntries = new List<ConfigEntryBase>();
+
+            foreach (var configEntryBase in plugin.Instance.Config.Select(configEntry => configEntry.Value))
             {
-                var configEntries = new List<ConfigEntryBase>();
-
-                foreach (var configEntryBase in plugin.Instance.Config.Select(configEntry => configEntry.Value))
-                {
-                    
-                    if (configEntryBase.Description != null && configEntryBase.Description.Tags.Contains("HideREPOConfig"))
-                        continue;
-                    
-                    configEntries.Add(configEntryBase);    
-                }
+                var tags = configEntryBase.Description?.Tags;
                 
+                if (tags != null && (tags.Contains("HideREPOConfig") || tags.Contains("HideFromREPOConfig")))
+                    continue;
                 
-                if (configEntries.Count > 0)
-                    repoConfigs.TryAdd(FixNaming(plugin.Metadata.Name), configEntries.ToArray());
+                configEntries.Add(configEntryBase);
             }
-
-            return repoConfigs;
+            
+            if (configEntries.Count > 0)
+                repoConfigs.TryAdd(FixNaming(plugin.Metadata.Name), configEntries.ToArray());
         }
 
+        return repoConfigs;
+    }
+
     private static void CreateModPage(string modName, ConfigEntryBase[] configEntryBases, out REPOButton modButton)
-        {
-            var modPage = new REPOPopupPage(modName, modPage => {
-                modPage.SetPosition(new Vector2(500.52f, 190.6f));
-                modPage.SetSize(new Vector2(310f, 342f));
-                modPage.SetMaskPadding(new Padding(0, 70, 0, 50));
-            });
+    {
+        var modPage = new REPOPopupPage(modName, modPage => {
+            modPage.SetPosition(new Vector2(500.52f, 190.6f));
+            modPage.SetSize(new Vector2(310f, 342f));
+            modPage.SetMaskPadding(new Padding(0, 70, 0, 50));
+        });
 
-            var shortName = modName;
-            if (shortName.Length > 19)
-                shortName = $"{shortName[..16]}...";
+        var shortName = modName;
+        if (shortName.Length > 19)
+            shortName = $"{shortName[..16]}...";
 
-            var modButtonTemp = modButton = new REPOButton(shortName, null);
+        var modButtonTemp = modButton = new REPOButton(shortName, null);
+        
+        modButton.SetOnClick(() => {
+            if (currentPageModButton == modButtonTemp)
+                return;
             
-            modButton.SetOnClick(() => {
-                if (currentPageModButton == modButtonTemp)
-                    return;
+            var openPage = () => {
+                MenuManager.instance.PageCloseAllAddedOnTop();
+
+                modPage.ClearButtons();
                 
-                var openPage = () => {
-                    MenuManager.instance.PageCloseAllAddedOnTop();
+                changedEntries.Clear();
+                currentPageModButton = modButtonTemp;
 
-                    modPage.ClearButtons();
-                    
-                    changedEntries.Clear();
-                    currentPageModButton = modButtonTemp;
-
-                    var saveChangesButton = new REPOButton("Save Changes", null)
-                        .SetOnClick(() => {
-                            foreach (var entry in changedEntries)
-                                entry.Key.BoxedValue = entry.Value;
-                            
-                            changedEntries.Clear();
-                        });
-
-                    var resetToDefaultButton = new REPOButton("Reset", null);
-                    resetToDefaultButton.SetOnClick(() => {
-                        MenuAPI.OpenPopup($"Reset {modName}", Color.red, $"Reset all of {modName}{(modName.ToLower().EndsWith('s') ? "'" : "'s")} settings?", "Yes", () => {
-                                foreach (var entry in configEntryBases)
-                                    entry.BoxedValue = entry.DefaultValue;
-                                
-                                changedEntries.Clear();
-                                currentPageModButton = null;
-                                modButtonTemp.onClick.Invoke();
-                            }, "No");
+                var saveChangesButton = new REPOButton("Save Changes", null)
+                    .SetOnClick(() => {
+                        foreach (var entry in changedEntries)
+                            entry.Key.BoxedValue = entry.Value;
+                        
+                        changedEntries.Clear();
                     });
 
-                    modPage.AddElementToPage(saveChangesButton, new Vector2(365, 34f));
-                    modPage.AddElementToPage(resetToDefaultButton, new Vector2(560f, 34f));
+                var resetToDefaultButton = new REPOButton("Reset", null);
+                resetToDefaultButton.SetOnClick(() => {
+                    MenuAPI.OpenPopup($"Reset {modName}", Color.red, $"Reset all of {modName}{(modName.ToLower().EndsWith('s') ? "'" : "'s")} settings?", "Yes", () => {
+                            foreach (var entry in configEntryBases)
+                                entry.BoxedValue = entry.DefaultValue;
+                            
+                            changedEntries.Clear();
+                            currentPageModButton = null;
+                            modButtonTemp.onClick.Invoke();
+                        }, "No");
+                });
 
-                    var yPosition = -80f;
+                modPage.AddElementToPage(saveChangesButton, new Vector2(365, 34f));
+                modPage.AddElementToPage(resetToDefaultButton, new Vector2(560f, 34f));
 
-                    for (var i = 0; i < configEntryBases.Length; i++)
+                var yPosition = -80f;
+
+                for (var i = 0; i < configEntryBases.Length; i++)
+                {
+                    var configEntryBase = configEntryBases[i];
+                    
+                    var name = FixNaming(configEntryBase.Definition.Key);
+                    var description = configEntryBase.Description.Description.Replace('\n', ' ');
+
+                    switch (configEntryBase)
                     {
-                        var configEntryBase = configEntryBases[i];
-                        
-                        var name = FixNaming(configEntryBase.Definition.Key);
-                        var description = configEntryBase.Description.Description.Replace('\n', ' ');
-
-                        switch (configEntryBase)
+                        case ConfigEntry<bool> boolEntry:
                         {
-                            case ConfigEntry<bool> boolEntry:
+                            modPage.AddElementToScrollView(
+                                new REPOToggle(name, b => { changedEntries[boolEntry] = b; }, "ON", "OFF",
+                                    boolEntry.Value), new Vector2(120f, yPosition));
+                            yPosition -= 30f;
+                            break;
+                        }
+                        case ConfigEntry<int> intEntry:
+                        {
+                            var repoSlider = new REPOSlider(name, description,
+                                f => { changedEntries[intEntry] = Convert.ToInt32(f); }, 0, 1, 0, intEntry.Value);
+
+                            if (description.Length > 43)
                             {
-                                modPage.AddElementToScrollView(
-                                    new REPOToggle(name, b => { changedEntries[boolEntry] = b; }, "ON", "OFF",
-                                        boolEntry.Value), new Vector2(120f, yPosition));
-                                yPosition -= 30f;
-                                break;
+                                repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                repoSlider.SetScroll(true);
                             }
-                            case ConfigEntry<int> intEntry:
+
+                            if (intEntry.Description.AcceptableValues is AcceptableValueRange<int> range)
                             {
-                                var repoSlider = new REPOSlider(name, description,
-                                    f => { changedEntries[intEntry] = Convert.ToInt32(f); }, 0, 1, 0, intEntry.Value);
+                                repoSlider.SetMin(range.MinValue);
+                                repoSlider.SetMax(range.MaxValue);
+                            }
+                            else
+                            {
+                                var defaultValue = (int)intEntry.DefaultValue;
+                                var estimatedRangeMax = defaultValue switch
+                                {
+                                    0 => 10,
+                                    _ => defaultValue * 2
+                                };
 
-                                if (description.Length > 43)
-                                {
-                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
-                                    repoSlider.ToggleScroll(true);
-                                }
+                                repoSlider.SetMin(-estimatedRangeMax);
+                                repoSlider.SetMax(estimatedRangeMax);
+                            }
 
-                                if (intEntry.Description.AcceptableValues is AcceptableValueRange<int> range)
+                            modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
+                            yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
+                            break;
+                        }
+                        case ConfigEntry<float> floatEntry: {
+                            var repoSlider = new REPOSlider(name, description,
+                                f => { changedEntries[floatEntry] = f; }, 0, 0, 0, floatEntry.Value);
+
+                            if (description.Length > 43)
+                            {
+                                repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                repoSlider.SetScroll(true);
+                            }
+
+                            var defaultValue = (float)floatEntry.DefaultValue;
+
+                            switch (floatEntry.Description.AcceptableValues)
+                            {
+                                case AcceptableValueRange<float> floatRange:
+                                    repoSlider.SetMin(floatRange.MinValue);
+                                    repoSlider.SetMax(floatRange.MaxValue);
+                                    break;
+                                case AcceptableValueRange<int> intRange:
+                                    repoSlider.SetMin(intRange.MinValue);
+                                    repoSlider.SetMax(intRange.MaxValue);
+                                    break;
+                                default:
                                 {
-                                    repoSlider.SetMin(range.MinValue);
-                                    repoSlider.SetMax(range.MaxValue);
-                                }
-                                else
-                                {
-                                    var defaultValue = (int)intEntry.DefaultValue;
                                     var estimatedRangeMax = defaultValue switch
                                     {
                                         0 => 10,
-                                        _ => defaultValue * 2
+                                        < 1f => 2f,
+                                        _ => defaultValue * 2f
                                     };
 
                                     repoSlider.SetMin(-estimatedRangeMax);
                                     repoSlider.SetMax(estimatedRangeMax);
+                                    break;
                                 }
-
-                                modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
-                                break;
                             }
-                            case ConfigEntry<float> floatEntry:
+
+                            var defaultValueAsString = defaultValue.ToString(CultureInfo.InvariantCulture);
+
+                            var decimalIndex = defaultValueAsString.IndexOf('.');
+
+                            if (decimalIndex == -1)
+                                repoSlider.SetPrecision(0);
+                            else
+                                repoSlider.SetPrecision(defaultValueAsString.Length - decimalIndex - 1);
+
+                            modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
+
+                            yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
+                            break;
+                        }
+                        case ConfigEntry<string> stringEntry:
+                        {
+                            if (stringEntry.Description.AcceptableValues is not AcceptableValueList<string>
+                                    valueList || valueList.AcceptableValues.Length == 0)
+                                continue;
+
+                            var repoSlider = new REPOSlider(name, description, @int => changedEntries[stringEntry] = valueList.AcceptableValues[@int],
+                                stringEntry.Value, valueList.AcceptableValues);
+
+                            if (description.Length > 43)
                             {
-                                var repoSlider = new REPOSlider(name, description,
-                                    f => { changedEntries[floatEntry] = f; }, 0, 0, 0, floatEntry.Value);
-
-                                if (description.Length > 43)
-                                {
-                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
-                                    repoSlider.ToggleScroll(true);
-                                }
-
-                                var defaultValue = (float)floatEntry.DefaultValue;
-
-                                switch (floatEntry.Description.AcceptableValues)
-                                {
-                                    case AcceptableValueRange<float> floatRange:
-                                        repoSlider.SetMin(floatRange.MinValue);
-                                        repoSlider.SetMax(floatRange.MaxValue);
-                                        break;
-                                    case AcceptableValueRange<int> intRange:
-                                        repoSlider.SetMin(intRange.MinValue);
-                                        repoSlider.SetMax(intRange.MaxValue);
-                                        break;
-                                    default:
-                                    {
-                                        var estimatedRangeMax = defaultValue switch
-                                        {
-                                            0 => 10,
-                                            < 1f => 2f,
-                                            _ => defaultValue * 2f
-                                        };
-
-                                        repoSlider.SetMin(-estimatedRangeMax);
-                                        repoSlider.SetMax(estimatedRangeMax);
-                                        break;
-                                    }
-                                }
-
-                                var defaultValueAsString = defaultValue.ToString(CultureInfo.InvariantCulture);
-
-                                var decimalIndex = defaultValueAsString.IndexOf('.');
-
-                                if (decimalIndex == -1)
-                                    repoSlider.SetPrecision(0);
-                                else
-                                    repoSlider.SetPrecision(defaultValueAsString.Length - decimalIndex - 1);
-
-                                modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-
-                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
-                                break;
+                                repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                repoSlider.SetScroll(true);
                             }
-                            case ConfigEntry<string> stringEntry:
+                            
+                            modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
+                            yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
+                            break;
+                        }
+                        case ConfigEntry<Key> keyEntry: {
+                            var repoKeybind = new REPOKeybind(name, key => changedEntries[keyEntry] = key,
+                                keyEntry.Value);
+                            
+                            if (configEntryBases.ElementAtOrDefault(i - 1)?.SettingType == typeof(Key))
+                                yPosition -= 11;
+                            else
+                                yPosition -= 5;
+                            
+                            modPage.AddElementToScrollView(repoKeybind, new Vector2(15f, yPosition));
+                            yPosition -= 36f;
+                            break;
+                        }
+                        case not null when configEntryBase.SettingType.IsSubclassOf(typeof(Enum)):
+                        {
+                            var enumType = configEntryBase.SettingType;
+                            var values = Enum.GetNames(enumType);
+                            
+                            var repoSlider = new REPOSlider(name, description, @int => changedEntries[configEntryBase] = Enum.Parse(enumType, values[@int]), configEntryBase.BoxedValue.ToString(), values);
+
+                            if (description.Length > 43)
                             {
-                                if (stringEntry.Description.AcceptableValues is not AcceptableValueList<string>
-                                        valueList || valueList.AcceptableValues.Length == 0)
-                                    continue;
-
-                                var repoSlider = new REPOSlider(name, description, @int => changedEntries[stringEntry] = valueList.AcceptableValues[@int],
-                                    stringEntry.Value, valueList.AcceptableValues);
-
-                                if (description.Length > 43)
-                                {
-                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
-                                    repoSlider.ToggleScroll(true);
-                                }
-                                
-                                modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
-                                break;
+                                repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
+                                repoSlider.SetScroll(true);
                             }
-                            case ConfigEntry<Key> keyEntry: {
-                                var repoKeybind = new REPOKeybind(name, key => changedEntries[keyEntry] = key,
-                                    keyEntry.Value);
-                                
-                                if (configEntryBases.ElementAtOrDefault(i - 1)?.SettingType == typeof(Key))
-                                    yPosition -= 11;
-                                else
-                                    yPosition -= 5;
-                                
-                                modPage.AddElementToScrollView(repoKeybind, new Vector2(15f, yPosition));
-                                yPosition -= 36f;
-                                break;
-                            }
-                            case not null when configEntryBase.SettingType.IsSubclassOf(typeof(Enum)):
-                            {
-                                var enumType = configEntryBase.SettingType;
-                                var values = Enum.GetNames(enumType);
-                                
-                                var repoSlider = new REPOSlider(name, description, @int => changedEntries[configEntryBase] = Enum.Parse(enumType, values[@int]), configEntryBase.BoxedValue.ToString(), values);
 
-                                if (description.Length > 43)
-                                {
-                                    repoSlider.SetScrollSettings(43, Entry.descriptionScrollSpeed.Value, 5f, 3f, 5f);
-                                    repoSlider.ToggleScroll(true);
-                                }
-
-                                modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
-                                yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
-                                break;
-                            }
+                            
+                            modPage.AddElementToScrollView(repoSlider, new Vector2(15f, yPosition));
+                            yPosition -= string.IsNullOrEmpty(repoSlider.description) ? 34f : 54f;
+                            break;
                         }
                     }
+                }
 
-                    modPage.OpenPage(true);
-                };
+                modPage.OpenPage(true);
+            };
 
-                if (changedEntries.Count > 0)
-                    MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", "Yes", openPage, "No");
-                else
-                    openPage.Invoke();
-            });
-        }
+            if (changedEntries.Count > 0)
+                MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", "Yes", openPage, "No");
+            else
+                openPage.Invoke();
+        });
+    }
     
     private static string FixNaming(string input)
     {
