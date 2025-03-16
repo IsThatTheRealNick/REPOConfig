@@ -146,16 +146,13 @@ internal sealed class ConfigMenu
                     {
                         case ConfigEntry<bool> boolEntry:
                         {
-                            modPage.AddElementToScrollView(
-                                new REPOToggle(name, b => { changedEntries[boolEntry] = b; }, "ON", "OFF",
-                                    boolEntry.Value), new Vector2(120f, yPosition));
+                            modPage.AddElementToScrollView(new REPOToggle(name, b => changedEntries[configEntryBase]  = b, "ON", "OFF", boolEntry.Value), new Vector2(120f, yPosition));
                             yPosition -= 30f;
                             break;
                         }
                         case ConfigEntry<int> intEntry:
                         {
-                            var repoSlider = new REPOSlider(name, description,
-                                f => { changedEntries[intEntry] = Convert.ToInt32(f); }, 0, 1, 0, intEntry.Value);
+                            var repoSlider = new REPOSlider(name, description, f => changedEntries[configEntryBase] = Convert.ToInt32(f), 0, 1, 0, intEntry.Value);
 
                             if (description.Length > 43)
                             {
@@ -187,7 +184,7 @@ internal sealed class ConfigMenu
                         }
                         case ConfigEntry<float> floatEntry: {
                             var repoSlider = new REPOSlider(name, description,
-                                f => { changedEntries[floatEntry] = f; }, 0, 0, 0, floatEntry.Value);
+                                f => changedEntries[configEntryBase] = f, 0, 0, 0, floatEntry.Value);
 
                             if (description.Length > 43)
                             {
@@ -242,7 +239,7 @@ internal sealed class ConfigMenu
                                     valueList || valueList.AcceptableValues.Length == 0)
                                 continue;
 
-                            var repoSlider = new REPOSlider(name, description, @int => changedEntries[stringEntry] = valueList.AcceptableValues[@int],
+                            var repoSlider = new REPOSlider(name, description, @int => changedEntries[configEntryBase] = valueList.AcceptableValues[@int],
                                 stringEntry.Value, valueList.AcceptableValues);
 
                             if (description.Length > 43)
@@ -256,7 +253,7 @@ internal sealed class ConfigMenu
                             break;
                         }
                         case ConfigEntry<Key> keyEntry: {
-                            var repoKeybind = new REPOKeybind(name, key => changedEntries[keyEntry] = key,
+                            var repoKeybind = new REPOKeybind(name, key => changedEntries[configEntryBase] = key,
                                 keyEntry.Value);
                             
                             if (configEntryBases.ElementAtOrDefault(i - 1)?.SettingType == typeof(Key))
