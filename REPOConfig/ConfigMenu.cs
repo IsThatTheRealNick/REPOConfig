@@ -269,14 +269,12 @@ internal sealed class ConfigMenu
                                 yPosition -= 36f;
                                 break;
                             }
-                            default:
+                            case not null when configEntryBase.SettingType.IsSubclassOf(typeof(Enum)):
                             {
-                                if (!configEntryBase.SettingType.IsSubclassOf(typeof(Enum)))
-                                    break;
+                                var enumType = configEntryBase.SettingType;
+                                var values = Enum.GetNames(enumType);
                                 
-                                var values = Enum.GetNames(configEntryBase.SettingType);
-                                
-                                var repoSlider = new REPOSlider(name, description, @int => changedEntries[configEntryBase] = values[@int], configEntryBase.BoxedValue.ToString());
+                                var repoSlider = new REPOSlider(name, description, @int => changedEntries[configEntryBase] = Enum.Parse(enumType, values[@int]), configEntryBase.BoxedValue.ToString(), values);
 
                                 if (description.Length > 43)
                                 {
