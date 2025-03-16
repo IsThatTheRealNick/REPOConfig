@@ -39,9 +39,13 @@ namespace REPOConfig
             
             orig.Invoke(self);
         }
+
+        private static ConfigEntry<HideFlags> test;
         
         private void Awake()
         {
+            test = Config.Bind("Test", "Hide Flags", HideFlags.HideInHierarchy);
+            
             descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));
             showInGame = Config.Bind("General", "Show In Game", true, new ConfigDescription(string.Empty, null, "HideREPOConfig"));
 
