@@ -12,7 +12,7 @@ namespace REPOConfig
     [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.7"), BepInDependency("nickklmao.menulib", "2.0.0")]
     internal sealed class Entry : BaseUnityPlugin
     {
-        private const string MOD_NAME = "REPO Config";
+        private const string MOD_NAME = "REPOConfig";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
         
