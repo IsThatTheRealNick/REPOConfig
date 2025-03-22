@@ -9,12 +9,14 @@ using UnityEngine;
 
 namespace REPOConfig
 {
-    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.6"), BepInDependency("nickklmao.menulib")]
+    [BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.7"), BepInDependency("nickklmao.menulib", "2.0.0")]
     internal sealed class Entry : BaseUnityPlugin
     {
         private const string MOD_NAME = "REPO Config";
 
         internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
+        
+        internal static ConfigEntry<bool> showDescriptions;
         
         internal static ConfigEntry<float> descriptionScrollSpeed;
         
@@ -41,6 +43,19 @@ namespace REPOConfig
         
         private void Awake()
         {
+            showDescriptions = Config.Bind("General", "Show Descriptions", true);
+
+            showDescriptions.SettingChanged += (_, _) =>
+            {
+                var modButton = ConfigMenu.lastClickedModButton;
+                
+                if (!modButton)
+                    return;
+
+                ConfigMenu.lastClickedModButton = null;
+                modButton.button.onClick.Invoke();
+            };
+            
             descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));
             showInGame = Config.Bind("General", "Show In Game", true, new ConfigDescription(string.Empty, null, "HideFromREPOConfig"));
 
