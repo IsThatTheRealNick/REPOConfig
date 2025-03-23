@@ -45,8 +45,7 @@ namespace REPOConfig
         {
             showDescriptions = Config.Bind("General", "Show Descriptions", true);
 
-            showDescriptions.SettingChanged += (_, _) =>
-            {
+            showDescriptions.SettingChanged += (_, _) => {
                 var modButton = ConfigMenu.lastClickedModButton;
                 
                 if (!modButton)
