@@ -7,7 +7,6 @@ using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using MenuLib;
 using MenuLib.MonoBehaviors;
-using MenuLib.Structs;
 using TMPro;
 using UnityEngine;
 
@@ -30,8 +29,8 @@ internal sealed class ConfigMenu
     {
         changedEntries.Clear();
         lastClickedModButton = null;
-
-        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, true);
+        
+        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, true, false);
 
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
             if (changedEntries.Count == 0)
@@ -49,7 +48,7 @@ internal sealed class ConfigMenu
         }, parent, new Vector2(66f, 18f)));
 
         CreateModList(repoPopupPage);
-        
+
         repoPopupPage.OpenPage(false);
     }
 
@@ -59,8 +58,8 @@ internal sealed class ConfigMenu
             mainModPage.AddElementToScrollView(parent =>
             {
                 var modButton = MenuAPI.CreateREPOButton(modName, null, parent);
-
-                modButton.button.onClick.AddListener(() =>
+                
+                modButton.onClick = () =>
                 {
                     if (lastClickedModButton == modButton)
                         return;
@@ -83,9 +82,33 @@ internal sealed class ConfigMenu
                     void OpenPage()
                     {
                         MenuAPI.CloseAllPagesAddedOnTop();
-
-                        var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, spacing: 5f);
-
+                        
+                        var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, shouldCachePage: false, spacing: 5f);
+                        
+                        modPage.AddElement(mainPageParent => {
+                            MenuAPI.CreateREPOButton("Save Changes", () =>
+                            {
+                                var cachedEntries = changedEntries.ToArray();
+                                changedEntries.Clear();
+                                
+                                foreach (var (key, value) in cachedEntries)
+                                    key.BoxedValue = value;
+                                
+                            }, mainPageParent, new Vector2(370f, 18f));
+                        });
+                        
+                        modPage.AddElement(mainPageParent => {
+                            MenuAPI.CreateREPOButton("Revert", () =>
+                            {
+                                if (changedEntries.Count == 0)
+                                    return;
+                                
+                                changedEntries.Clear();
+                                lastClickedModButton = null;
+                                modButton.onClick.Invoke();
+                            }, mainPageParent, new Vector2(585f, 18f));
+                        });
+                        
                         modPage.AddElementToScrollView(scrollView => {
                             var resetButton = MenuAPI.CreateREPOButton("Reset To Default", () => {
                                 MenuAPI.OpenPopup($"Reset {modName}'{(modName.ToLower().EndsWith('s') ? string.Empty : "s")} settings?", Color.red, "Are you sure you want to reset all settings back to default?", ResetToDefault);
@@ -99,7 +122,7 @@ internal sealed class ConfigMenu
 
                                     changedEntries.Clear();
                                     lastClickedModButton = null;
-                                    modButton.button.onClick.Invoke();
+                                    modButton.onClick.Invoke();
                                 }
                             }, scrollView);
 
@@ -107,42 +130,16 @@ internal sealed class ConfigMenu
                         
                             return resetButton.rectTransform;
                         });
-                        
-                        modPage.AddElement(mainPageParent =>
-                        {
-                            MenuAPI.CreateREPOButton("Save Changes", () =>
-                            {
-                                var cachedEntries = changedEntries.ToArray();
-                                changedEntries.Clear();
-                                
-                                foreach (var (key, value) in cachedEntries)
-                                    key.BoxedValue = value;
-                                
-                            }, mainPageParent, new Vector2(370f, 18f));
-                        });
-                        
-                        modPage.AddElement(mainPageParent =>
-                        {
-                            MenuAPI.CreateREPOButton("Revert", () =>
-                            {
-                                if (changedEntries.Count == 0)
-                                    return;
-                                
-                                changedEntries.Clear();
-                                lastClickedModButton = null;
-                                modButton.button.onClick.Invoke();
-                            }, mainPageParent, new Vector2(585f, 18f));
-                        });
                     
                         modPage.AddElementToScrollView(scrollView => MenuAPI.CreateREPOSpacer(scrollView, size: new Vector2(0, 10)).rectTransform);
                     
                         CreateModEntries(modPage, configEntryBases);
-
+                        
                         modPage.OpenPage(true);
                         
                         lastClickedModButton = modButton;
                     }
-                });
+                };
                 
 
                 return modButton.rectTransform;

@@ -53,7 +53,7 @@ namespace REPOConfig
                     return;
 
                 ConfigMenu.lastClickedModButton = null;
-                modButton.button.onClick.Invoke();
+                modButton.onClick.Invoke();
             };
             
             descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));
