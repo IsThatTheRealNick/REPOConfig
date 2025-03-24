@@ -59,6 +59,15 @@ internal sealed class ConfigMenu
             {
                 var modButton = MenuAPI.CreateREPOButton(modName, null, parent);
                 
+                if (modName.Length > 24)
+                {
+                    modButton.overrideButtonSize = modButton.GetLabelSize() with { x = 250f };
+                    
+                    var repoTextScroller = modButton.labelTMP.gameObject.AddComponent<REPOTextScroller>();
+                    repoTextScroller.maxCharacters = 24;
+                    MenuManager.instance.StartCoroutine(repoTextScroller.Animate());
+                }
+                
                 modButton.onClick = () =>
                 {
                     if (lastClickedModButton == modButton)
