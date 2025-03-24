@@ -30,7 +30,7 @@ internal sealed class ConfigMenu
         changedEntries.Clear();
         lastClickedModButton = null;
         
-        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, pageDimmerVisibility: true);
+        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, false, true);
 
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
             if (changedEntries.Count == 0)
@@ -83,7 +83,7 @@ internal sealed class ConfigMenu
                     {
                         MenuAPI.CloseAllPagesAddedOnTop();
                         
-                        var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, spacing: 5f);
+                        var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
