@@ -30,7 +30,7 @@ internal sealed class ConfigMenu
         changedEntries.Clear();
         lastClickedModButton = null;
         
-        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left);
+        var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, pageDimmerVisibility: true);
 
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
             if (changedEntries.Count == 0)
