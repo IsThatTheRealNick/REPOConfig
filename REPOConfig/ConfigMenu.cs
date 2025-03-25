@@ -24,7 +24,7 @@ internal sealed class ConfigMenu
         MenuAPI.AddElementToLobbyMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(186f, 32)));
         MenuAPI.AddElementToEscapeMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(126f, 86f)));
     }
-
+    
     private static void CreateModMenu()
     {
         changedEntries.Clear();
