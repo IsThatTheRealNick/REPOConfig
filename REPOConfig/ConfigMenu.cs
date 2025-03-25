@@ -150,7 +150,6 @@ internal sealed class ConfigMenu
                     }
                 };
                 
-
                 return modButton.rectTransform;
             });
     }
@@ -189,8 +188,18 @@ internal sealed class ConfigMenu
                             }
                             else
                             {
-                                min = -100;
-                                max = 100;
+                                var absoluteDefaultValue =  Math.Abs((float) entry.BoxedValue);
+
+                                if (absoluteDefaultValue == 0)
+                                    min = -(max = 100);
+                                else if (absoluteDefaultValue <= .001)
+                                    min = -(max = 10f);
+                                else if (absoluteDefaultValue <= .01)
+                                    min = -(max = 50f);
+                                else if (absoluteDefaultValue <= 100)
+                                    min = -(max = absoluteDefaultValue * 3f);
+                                else
+                                     min = -(max = absoluteDefaultValue * 2);
                             }
 
                             var repoSlider = MenuAPI.CreateREPOSlider(modName, description, f => changedEntries[entry] = f, scrollView, defaultValue: (float)entry.BoxedValue, min: min, max: max, precision: precision);
@@ -224,8 +233,14 @@ internal sealed class ConfigMenu
                             }
                             else
                             {
-                                min = -100;
-                                max = 100;
+                                var absoluteDefaultValue =  Math.Abs((int) entry.BoxedValue);
+
+                                min = absoluteDefaultValue switch
+                                {
+                                    0 => -(max = 100),
+                                    <= 100 => -(max = absoluteDefaultValue * 3),
+                                    _ => -(max = absoluteDefaultValue * 2)
+                                };
                             }
                             
                             var repoSlider = MenuAPI.CreateREPOSlider(modName, description, i => changedEntries[entry] = i, scrollView, defaultValue: (int) entry.BoxedValue, min: min, max: max);
