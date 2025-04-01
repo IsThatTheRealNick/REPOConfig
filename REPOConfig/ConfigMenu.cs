@@ -321,7 +321,7 @@ internal sealed class ConfigMenu
     {
         var repoConfigs = new Dictionary<string, ConfigEntryBase[]>();
         
-        foreach (var plugin in Chainloader.PluginInfos.Values)
+        foreach (var plugin in Chainloader.PluginInfos.Values.OrderBy(p => p.Metadata.Name))
         {
             var configEntries = new List<ConfigEntryBase>();
 
