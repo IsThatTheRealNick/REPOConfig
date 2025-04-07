@@ -31,6 +31,17 @@ internal sealed class ConfigMenu
         lastClickedModButton = null;
         
         var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, false, true);
+        repoPopupPage.onEscapePressed += () => {
+            if (changedEntries.Count == 0)
+                return false;
+            
+            MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", () => {
+                repoPopupPage.ClosePage(true);
+                changedEntries.Clear();
+            });
+                
+            return true;
+        };
         
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
             if (changedEntries.Count == 0)
@@ -93,6 +104,7 @@ internal sealed class ConfigMenu
                         MenuAPI.CloseAllPagesAddedOnTop();
                         
                         var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
+                        modPage.onEscapePressed = () => changedEntries.Count > 0;
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
