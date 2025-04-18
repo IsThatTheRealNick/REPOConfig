@@ -17,6 +17,8 @@ internal sealed class ConfigMenu
     private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
 
     internal static REPOButton lastClickedModButton;
+
+    private static bool hasPopupMenuOpened;
     
     internal static void Initialize()
     {
@@ -31,20 +33,28 @@ internal sealed class ConfigMenu
         lastClickedModButton = null;
         
         var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, false, true);
+        repoPopupPage.scrollView.scrollSpeed = 3f;
+        repoPopupPage.maskPadding = repoPopupPage.maskPadding with { top = 35 }; 
         repoPopupPage.onEscapePressed += () => {
+            if (hasPopupMenuOpened)
+                return true;
+            
             if (changedEntries.Count == 0)
                 return false;
             
             MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", () => {
                 repoPopupPage.ClosePage(true);
                 changedEntries.Clear();
-            });
+                hasPopupMenuOpened = false;
+            }, () => hasPopupMenuOpened = false);
+            
+            hasPopupMenuOpened = true;
                 
             return true;
         };
         
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
-            if (changedEntries.Count == 0)
+            if (changedEntries.Count == 0 || hasPopupMenuOpened)
             {
                 repoPopupPage.ClosePage(true);
                 return;
@@ -55,7 +65,10 @@ internal sealed class ConfigMenu
                 {
                     repoPopupPage.ClosePage(true);
                     changedEntries.Clear();
-                });
+                    hasPopupMenuOpened = false;
+                }, () => hasPopupMenuOpened = false);
+            
+            hasPopupMenuOpened = true;
         }, parent, new Vector2(66f, 18f)));
 
         CreateModList(repoPopupPage);
@@ -89,14 +102,16 @@ internal sealed class ConfigMenu
                         OpenPage();
                         return;
                     }
-            
+                    
                     MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?",
                         () =>
                         {
                             changedEntries.Clear();
                             OpenPage();
-                        });
+                            hasPopupMenuOpened = false;
+                        }, () => hasPopupMenuOpened = false);
                     
+                    hasPopupMenuOpened = true;
                     return;
 
                     void OpenPage()
@@ -104,7 +119,8 @@ internal sealed class ConfigMenu
                         MenuAPI.CloseAllPagesAddedOnTop();
                         
                         var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
-                        modPage.onEscapePressed = () => changedEntries.Count > 0;
+                        modPage.scrollView.scrollSpeed = 3f;
+                        modPage.onEscapePressed = () => changedEntries.Count > 0 || hasPopupMenuOpened;
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
@@ -273,12 +289,8 @@ internal sealed class ConfigMenu
                         });
                         break;
                     }
-                    case ConfigEntry<string>: {
-                        if (entry.Description.AcceptableValues is not AcceptableValueList<string> acceptableValueList)
-                            continue;
-                        
-                        modPage.AddElementToScrollView(scrollView =>
-                        {
+                    case ConfigEntry<string> when entry.Description.AcceptableValues is AcceptableValueList<string> acceptableValueList: {
+                        modPage.AddElementToScrollView(scrollView => {
                             var repoSlider = MenuAPI.CreateREPOSlider(modName, description, (string s) => changedEntries[entry] = s, scrollView, acceptableValueList.AcceptableValues, (string)entry.BoxedValue);
 
                             if (description.Length <= 43)
@@ -294,6 +306,19 @@ internal sealed class ConfigMenu
                             modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());
                             
                             return repoSlider.rectTransform;
+                        });
+                        break;
+                    }
+                    case ConfigEntry<string>:
+                    {
+                        modPage.AddElementToScrollView(scrollView =>
+                        {
+                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s => changedEntries[entry] = s, scrollView, delayOnValueChanged: true, defaultValue: (string) entry.BoxedValue);
+
+                            var defaultValue = (string) entry.DefaultValue;
+                            repoInputField.inputStringSystem.placeholder = !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>";
+
+                            return repoInputField.rectTransform;
                         });
                         break;
                     }
@@ -351,6 +376,11 @@ internal sealed class ConfigMenu
                 repoConfigs.TryAdd(FixNaming(plugin.Metadata.Name), configEntries.ToArray());
         }
 
+        for (var i = 0; i < 1000; i++)
+        {
+            repoConfigs.Add($"Test {i}", []);
+        }
+        
         return repoConfigs;
     }
 
