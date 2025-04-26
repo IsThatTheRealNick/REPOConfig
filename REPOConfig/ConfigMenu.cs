@@ -18,6 +18,8 @@ internal sealed class ConfigMenu
 
     internal static REPOButton lastClickedModButton;
 
+    private static readonly List<REPOButton> currentModButtons = []; 
+    
     private static bool hasPopupMenuOpened;
     
     internal static void Initialize()
@@ -37,21 +39,38 @@ internal sealed class ConfigMenu
         repoPopupPage.maskPadding = repoPopupPage.maskPadding with { top = 35 }; 
         repoPopupPage.onEscapePressed += () => {
             if (hasPopupMenuOpened)
-                return true;
-            
-            if (changedEntries.Count == 0)
                 return false;
+
+            if (changedEntries.Count == 0)
+                return true;
             
             MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", () => {
                 repoPopupPage.ClosePage(true);
                 changedEntries.Clear();
                 hasPopupMenuOpened = false;
             }, () => hasPopupMenuOpened = false);
-            
+
             hasPopupMenuOpened = true;
-                
-            return true;
+            return false;
         };
+
+        repoPopupPage.AddElement(parent =>
+        {
+            var searchField = MenuAPI.CreateREPOInputField("Mod Search", s =>
+            {
+                var searchTerm = string.IsNullOrEmpty(s) ? null : s.ToLower().Trim();
+                
+                foreach (var modButton in currentModButtons)
+                    modButton.repoScrollViewElement.visibility = searchTerm == null || modButton.labelTMP.text.ToLower().Contains(searchTerm);
+                
+                repoPopupPage.scrollView.SetScrollPosition(0);
+                
+            }, parent, new Vector2(83f, 272f));
+            
+            searchField.transform.localScale = Vector3.one * .95f;
+        });
+
+        CreateModList(repoPopupPage);
         
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
             if (changedEntries.Count == 0 || hasPopupMenuOpened)
@@ -71,13 +90,12 @@ internal sealed class ConfigMenu
             hasPopupMenuOpened = true;
         }, parent, new Vector2(66f, 18f)));
 
-        CreateModList(repoPopupPage);
-
         repoPopupPage.OpenPage(false);
     }
 
     private static void CreateModList(REPOPopupPage mainModPage)
     {
+        currentModButtons.Clear();
         foreach (var (modName, configEntryBases) in GetModConfigEntries())
             mainModPage.AddElementToScrollView(parent =>
             {
@@ -120,7 +138,7 @@ internal sealed class ConfigMenu
                         
                         var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
                         modPage.scrollView.scrollSpeed = 3f;
-                        modPage.onEscapePressed = () => changedEntries.Count > 0 || hasPopupMenuOpened;
+                        modPage.onEscapePressed = () =>  !hasPopupMenuOpened && changedEntries.Count == 0;
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
@@ -142,7 +160,7 @@ internal sealed class ConfigMenu
                                 
                                 changedEntries.Clear();
                                 lastClickedModButton = null;
-                                modButton.onClick.Invoke();
+                                OpenPage();
                             }, mainPageParent, new Vector2(585f, 18f));
                         });
                         
@@ -178,6 +196,7 @@ internal sealed class ConfigMenu
                     }
                 };
                 
+                currentModButtons.Add(modButton);
                 return modButton.rectTransform;
             });
     }
@@ -313,10 +332,8 @@ internal sealed class ConfigMenu
                     {
                         modPage.AddElementToScrollView(scrollView =>
                         {
-                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s => changedEntries[entry] = s, scrollView, delayOnValueChanged: true, defaultValue: (string) entry.BoxedValue);
-
                             var defaultValue = (string) entry.DefaultValue;
-                            repoInputField.inputStringSystem.placeholder = !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>";
+                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s => changedEntries[entry] = s, scrollView, Vector2.zero, false, !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>", (string) entry.BoxedValue);
 
                             return repoInputField.rectTransform;
                         });
@@ -374,11 +391,6 @@ internal sealed class ConfigMenu
             
             if (configEntries.Count > 0)
                 repoConfigs.TryAdd(FixNaming(plugin.Metadata.Name), configEntries.ToArray());
-        }
-
-        for (var i = 0; i < 1000; i++)
-        {
-            repoConfigs.Add($"Test {i}", []);
         }
         
         return repoConfigs;

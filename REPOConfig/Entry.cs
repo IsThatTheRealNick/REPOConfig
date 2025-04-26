@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace REPOConfig;
 
-[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.1.8"), BepInDependency("nickklmao.menulib", "2.1.1")]
+[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.2.0"), BepInDependency("nickklmao.menulib", "2.4.0")]
 internal sealed class Entry : BaseUnityPlugin
 {
     private const string MOD_NAME = "REPOConfig";
