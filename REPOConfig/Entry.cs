@@ -9,16 +9,16 @@ using UnityEngine;
 
 namespace REPOConfig;
 
-[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.2.0"), BepInDependency("nickklmao.menulib", "2.4.0")]
+[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.2.1"), BepInDependency("nickklmao.menulib", "2.4.1")]
 internal sealed class Entry : BaseUnityPlugin
 {
     private const string MOD_NAME = "REPOConfig";
 
     internal static readonly ManualLogSource logger = BepInEx.Logging.Logger.CreateLogSource(MOD_NAME);
         
-    internal static ConfigEntry<bool> showDescriptions;
+    //internal static ConfigEntry<bool> showDescriptions;
         
-    internal static ConfigEntry<float> descriptionScrollSpeed;
+    //internal static ConfigEntry<float> descriptionScrollSpeed;
         
     private static ConfigEntry<bool> showInGame;
         
@@ -43,9 +43,9 @@ internal sealed class Entry : BaseUnityPlugin
         
     private void Awake()
     {
-        showDescriptions = Config.Bind("General", "Show Descriptions", true);
+        //showDescriptions = Config.Bind("General", "Show Descriptions", true);
 
-        showDescriptions.SettingChanged += (_, _) => {
+        /*showDescriptions.SettingChanged += (_, _) => {
             var modButton = ConfigMenu.lastClickedModButton;
                 
             if (!modButton)
@@ -53,9 +53,9 @@ internal sealed class Entry : BaseUnityPlugin
 
             ConfigMenu.lastClickedModButton = null;
             modButton.onClick.Invoke();
-        };
+        };*/
             
-        descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));
+        /*descriptionScrollSpeed = Config.Bind("General", "Description Scroll Speed", .15f, new ConfigDescription("How fast descriptions scroll. (Seconds per character)", new AcceptableValueRange<float>(0.1f, 2f)));*/
         showInGame = Config.Bind("General", "Show In Game", true, new ConfigDescription(string.Empty, null, "HideFromREPOConfig"));
 
         if (!showInGame.Value)

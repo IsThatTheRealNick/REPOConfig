@@ -14,7 +14,9 @@ namespace REPOConfig;
 
 internal sealed class ConfigMenu
 {
-    private static readonly Dictionary<ConfigEntryBase, object> changedEntries = new();
+    private static readonly Dictionary<ConfigEntryBase, object> changedEntryValues = new();
+    
+    private static readonly Dictionary<ConfigEntryBase, object> originalEntryValues = new();
 
     internal static REPOButton lastClickedModButton;
 
@@ -31,7 +33,8 @@ internal sealed class ConfigMenu
     
     private static void CreateModMenu()
     {
-        changedEntries.Clear();
+        changedEntryValues.Clear();
+        
         lastClickedModButton = null;
         
         var repoPopupPage = MenuAPI.CreateREPOPopupPage("Mods", REPOPopupPage.PresetSide.Left, false, true);
@@ -41,12 +44,12 @@ internal sealed class ConfigMenu
             if (hasPopupMenuOpened)
                 return false;
 
-            if (changedEntries.Count == 0)
+            if (changedEntryValues.Count == 0)
                 return true;
             
             MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", () => {
                 repoPopupPage.ClosePage(true);
-                changedEntries.Clear();
+                changedEntryValues.Clear();
                 hasPopupMenuOpened = false;
             }, () => hasPopupMenuOpened = false);
 
@@ -73,7 +76,7 @@ internal sealed class ConfigMenu
         CreateModList(repoPopupPage);
         
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
-            if (changedEntries.Count == 0 || hasPopupMenuOpened)
+            if (changedEntryValues.Count == 0 || hasPopupMenuOpened)
             {
                 repoPopupPage.ClosePage(true);
                 return;
@@ -83,7 +86,7 @@ internal sealed class ConfigMenu
                 () =>
                 {
                     repoPopupPage.ClosePage(true);
-                    changedEntries.Clear();
+                    changedEntryValues.Clear();
                     hasPopupMenuOpened = false;
                 }, () => hasPopupMenuOpened = false);
             
@@ -97,9 +100,9 @@ internal sealed class ConfigMenu
     {
         currentModButtons.Clear();
         foreach (var (modName, configEntryBases) in GetModConfigEntries())
-            mainModPage.AddElementToScrollView(parent =>
-            {
+            mainModPage.AddElementToScrollView(parent => {
                 var modButton = MenuAPI.CreateREPOButton(modName, null, parent);
+                modButton.labelTMP.fontStyle = FontStyles.Normal;
                 
                 if (modName.Length > 24)
                 {
@@ -115,7 +118,7 @@ internal sealed class ConfigMenu
                     if (lastClickedModButton == modButton)
                         return;
                     
-                    if (changedEntries.Count == 0)
+                    if (changedEntryValues.Count == 0)
                     {
                         OpenPage();
                         return;
@@ -124,7 +127,7 @@ internal sealed class ConfigMenu
                     MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?",
                         () =>
                         {
-                            changedEntries.Clear();
+                            changedEntryValues.Clear();
                             OpenPage();
                             hasPopupMenuOpened = false;
                         }, () => hasPopupMenuOpened = false);
@@ -138,16 +141,19 @@ internal sealed class ConfigMenu
                         
                         var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
                         modPage.scrollView.scrollSpeed = 3f;
-                        modPage.onEscapePressed = () =>  !hasPopupMenuOpened && changedEntries.Count == 0;
+                        modPage.onEscapePressed = () =>  !hasPopupMenuOpened && changedEntryValues.Count == 0;
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
                             {
-                                var cachedEntries = changedEntries.ToArray();
-                                changedEntries.Clear();
-                                
+                                var cachedEntries = changedEntryValues.ToArray();
+                                changedEntryValues.Clear();
+
                                 foreach (var (key, value) in cachedEntries)
+                                {
                                     key.BoxedValue = value;
+                                    originalEntryValues[key] = value;
+                                }
                                 
                             }, mainPageParent, new Vector2(370f, 18f));
                         });
@@ -155,11 +161,10 @@ internal sealed class ConfigMenu
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Revert", () =>
                             {
-                                if (changedEntries.Count == 0)
+                                if (changedEntryValues.Count == 0)
                                     return;
                                 
-                                changedEntries.Clear();
-                                lastClickedModButton = null;
+                                changedEntryValues.Clear();
                                 OpenPage();
                             }, mainPageParent, new Vector2(585f, 18f));
                         });
@@ -175,9 +180,8 @@ internal sealed class ConfigMenu
                                     foreach (var configEntryBase in configEntryBases)
                                         configEntryBase.BoxedValue = configEntryBase.DefaultValue;
 
-                                    changedEntries.Clear();
-                                    lastClickedModButton = null;
-                                    modButton.onClick.Invoke();
+                                    changedEntryValues.Clear();
+                                    OpenPage();
                                 }
                             }, scrollView);
 
@@ -207,18 +211,40 @@ internal sealed class ConfigMenu
 
         foreach (var group in sectionGroups)
         {
-            modPage.AddElementToScrollView(scrollView => MenuAPI.CreateREPOLabel(FixNaming(group.Key), scrollView).rectTransform);
+            modPage.AddElementToScrollView(scrollView =>
+            {
+                var repoLabel = MenuAPI.CreateREPOLabel(FixNaming(group.Key), scrollView);
+                repoLabel.labelTMP.fontStyle = FontStyles.Bold;
+                return repoLabel.rectTransform;
+            });
 
             foreach (var entry in group)
             {
                 var modName = FixNaming(entry.Definition.Key);
-                var description = Entry.showDescriptions.Value ? entry.Description.Description.Replace("\n", string.Empty) : string.Empty;
+                //var description = Entry.showDescriptions.Value ? entry.Description.Description.Replace("\n", string.Empty) : string.Empty;
+
+                originalEntryValues.Remove(entry);
+                originalEntryValues.Add(entry, entry.BoxedValue);
                 
                 switch (entry)
                 {
                     case ConfigEntry<bool>:
                     {
-                        modPage.AddElementToScrollView(scrollView => MenuAPI.CreateREPOToggle(modName, b => changedEntries[entry] = b, scrollView, defaultValue: (bool) entry.BoxedValue).rectTransform);
+                        modPage.AddElementToScrollView(scrollView =>
+                        {
+                            var repoToggle = MenuAPI.CreateREPOToggle(modName, b =>
+                            {
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && b == (bool) originalValue)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
+                                
+                                changedEntryValues[entry] = b;
+                            }, scrollView, defaultValue: (bool)entry.BoxedValue);
+                            repoToggle.labelTMP.fontStyle = FontStyles.Normal;
+                            return repoToggle.rectTransform;
+                        });
                         break;
                     }
                     case ConfigEntry<float>: {
@@ -249,19 +275,29 @@ internal sealed class ConfigMenu
                                      min = -(max = absoluteDefaultValue * 2);
                             }
 
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, description, f => changedEntries[entry] = f, scrollView, defaultValue: (float)entry.BoxedValue, min: min, max: max, precision: precision);
-
-                            if (description.Length <= 43)
-                                return repoSlider.rectTransform;
-                            
-                            repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
-                            repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
+                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, f => //description
+                            {
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && Math.Abs(f - (float) originalValue) < float.Epsilon)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
                                 
-                            repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
+                                changedEntryValues[entry] = f;
+                            }, scrollView, defaultValue: (float)entry.BoxedValue, min: min, max: max, precision: precision);
+                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
+                            
+                            /*if (description.Length <= 43)
+                                return repoSlider.rectTransform;*/
+                            
+                            //repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
+                            //repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
+                                
+                            /*repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
                             repoSlider.repoTextScroller.startWaitTime = 3f;
 
                             repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());
+                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
 
 
                             return repoSlider.rectTransform;
@@ -290,19 +326,29 @@ internal sealed class ConfigMenu
                                 };
                             }
                             
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, description, i => changedEntries[entry] = i, scrollView, defaultValue: (int) entry.BoxedValue, min: min, max: max);
+                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, i => //description
+                            {
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && i == (int) originalValue)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
+                                
+                                changedEntryValues[entry] = i;
+                            }, scrollView, defaultValue: (int) entry.BoxedValue, min: min, max: max);
+                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
                             
-                            if (description.Length <= 43)
-                                return repoSlider.rectTransform;
+                            /*if (description.Length <= 43)
+                                return repoSlider.rectTransform;*/
                             
-                            repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
+                            /*repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
                             repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
                                 
                             repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
                             repoSlider.repoTextScroller.startWaitTime = 3f;
 
                             repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());
+                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
                             
                             return repoSlider.rectTransform;
                         });
@@ -310,9 +356,19 @@ internal sealed class ConfigMenu
                     }
                     case ConfigEntry<string> when entry.Description.AcceptableValues is AcceptableValueList<string> acceptableValueList: {
                         modPage.AddElementToScrollView(scrollView => {
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, description, (string s) => changedEntries[entry] = s, scrollView, acceptableValueList.AcceptableValues, (string)entry.BoxedValue);
-
-                            if (description.Length <= 43)
+                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, s => //description
+                            {
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && s == (string) originalValue)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
+                                
+                                changedEntryValues[entry] = s;
+                            }, scrollView, acceptableValueList.AcceptableValues, (string)entry.BoxedValue);
+                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
+                            
+                            /*if (description.Length <= 43)
                                 return repoSlider.rectTransform;
                             
                             repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
@@ -322,7 +378,7 @@ internal sealed class ConfigMenu
                             repoSlider.repoTextScroller.startWaitTime = 3f;
 
                             repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());
+                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
                             
                             return repoSlider.rectTransform;
                         });
@@ -333,8 +389,19 @@ internal sealed class ConfigMenu
                         modPage.AddElementToScrollView(scrollView =>
                         {
                             var defaultValue = (string) entry.DefaultValue;
-                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s => changedEntries[entry] = s, scrollView, Vector2.zero, false, !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>", (string) entry.BoxedValue);
-
+                            
+                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s =>
+                            {
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && s == (string) originalValue)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
+                                
+                                changedEntryValues[entry] = s;
+                            }, scrollView, Vector2.zero, false, !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>", (string) entry.BoxedValue);
+                            repoInputField.labelTMP.fontStyle = repoInputField.inputStringSystem.inputTMP.fontStyle = FontStyles.Normal;
+                            
                             return repoInputField.rectTransform;
                         });
                         break;
@@ -346,9 +413,21 @@ internal sealed class ConfigMenu
                         
                         modPage.AddElementToScrollView(scrollView =>
                         {
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, description, i => changedEntries[entry] = Enum.Parse(enumType, values[i]), scrollView, values, entry.BoxedValue.ToString());
+                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, i => //description
+                            {
+                                var enumValue = Enum.Parse(enumType, values[i]);
+                                
+                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && enumValue == originalValue)
+                                {
+                                    changedEntryValues.Remove(entry);
+                                    return;
+                                }
+                                
+                                changedEntryValues[entry] = enumValue;
+                            }, scrollView, values, entry.BoxedValue.ToString());
+                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
                             
-                            if (description.Length <= 43)
+                            /*if (description.Length <= 43)
                                 return repoSlider.rectTransform;
                             
                             repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
@@ -358,7 +437,7 @@ internal sealed class ConfigMenu
                             repoSlider.repoTextScroller.startWaitTime = 3f;
 
                             repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());
+                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
                             
                             return repoSlider.rectTransform;
                         });
