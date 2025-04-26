@@ -257,11 +257,11 @@ internal sealed class ConfigMenu
                                 min = acceptableValueRange.MinValue;
                                 max = acceptableValueRange.MaxValue;
                                 
-                                precision = Mathf.Max(GetDecimalPlaces(min), GetDecimalPlaces(max), GetDecimalPlaces((float) entry.DefaultValue));
+                                precision = Mathf.Max(GetDecimalPlaces(min), GetDecimalPlaces(max), GetDecimalPlaces((float) entry.DefaultValue), 2);
                             }
                             else
                             {
-                                var absoluteDefaultValue =  Math.Abs((float) entry.BoxedValue);
+                                var absoluteDefaultValue = Math.Abs((float) entry.BoxedValue);
 
                                 if (absoluteDefaultValue == 0)
                                     min = -(max = 100);
