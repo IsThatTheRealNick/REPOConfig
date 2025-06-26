@@ -4,12 +4,13 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
+using MenuLib;
 using MonoMod.RuntimeDetour;
 using UnityEngine;
 
 namespace REPOConfig;
 
-[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.2.2"), BepInDependency("nickklmao.menulib", "2.4.1")]
+[BepInPlugin("nickklmao.repoconfig", MOD_NAME, "1.2.3"), BepInDependency("nickklmao.menulib", "2.5.0")]
 internal sealed class Entry : BaseUnityPlugin
 {
     private const string MOD_NAME = "REPOConfig";
@@ -24,18 +25,19 @@ internal sealed class Entry : BaseUnityPlugin
         
     private static void MenuPageMain_StartHook(Action<MenuPageMain> orig, MenuPageMain self)
     {
+        var modButton = MenuAPI.CreateREPOButton("Mods", ConfigMenu.CreateModMenu, self.transform, new Vector2(48.3f, 0f));
+        
         var childrenInOrder = self.transform.Cast<Transform>()
             .Where(transform => transform.name.Contains("Menu Button"))
-            .OrderByDescending(transform => transform.localPosition.y);
-            
+            .OrderByDescending(transform => transform.localPosition.y).ToList();
+
+        childrenInOrder.Insert(childrenInOrder.Count - 1, modButton.transform);
+        
         var yPosition = 224f;
         foreach (var child in childrenInOrder)
         {
-            if (child.name.Contains("Quit"))
-                yPosition -= 34;
-                
             child.localPosition = child.localPosition with { y = yPosition};
-            yPosition -= 34;
+            yPosition -= 30;
         }
             
         orig.Invoke(self);

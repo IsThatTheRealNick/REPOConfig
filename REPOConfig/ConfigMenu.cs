@@ -26,12 +26,16 @@ internal sealed class ConfigMenu
     
     internal static void Initialize()
     {
-        MenuAPI.AddElementToMainMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(48.3f, 55.5f)));
-        MenuAPI.AddElementToLobbyMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(186f, 32)));
+        //Main Menu Button is created in 'Entry.MenuPageMain_StartHook'
+        
+        MenuAPI.AddElementToLobbyMenu(parent => {
+            var repoButton = MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(186f, 32f));
+            repoButton.labelTMP.fontSize = 28;
+        });
         MenuAPI.AddElementToEscapeMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(126f, 86f)));
     }
     
-    private static void CreateModMenu()
+    internal static void CreateModMenu()
     {
         changedEntryValues.Clear();
         
@@ -457,7 +461,7 @@ internal sealed class ConfigMenu
         foreach (var plugin in Chainloader.PluginInfos.Values.OrderBy(p => p.Metadata.Name))
         {
             var configEntries = new List<ConfigEntryBase>();
-
+            
             foreach (var configEntryBase in plugin.Instance.Config.Select(configEntry => configEntry.Value))
             {
                 var tags = configEntryBase.Description?.Tags;
