@@ -6,7 +6,9 @@ using BepInEx.Logging;
 using HarmonyLib;
 using MenuLib;
 using MonoMod.RuntimeDetour;
+using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace REPOConfig;
 
@@ -25,21 +27,31 @@ internal sealed class Entry : BaseUnityPlugin
         
     private static void MenuPageMain_StartHook(Action<MenuPageMain> orig, MenuPageMain self)
     {
-        var modButton = MenuAPI.CreateREPOButton("Mods", ConfigMenu.CreateModMenu, self.transform, new Vector2(48.3f, 0f));
+        var buttonParent = self.transform.Find("Buttons");
+        if(!buttonParent.GetComponent<VerticalLayoutGroup>()){
+            VerticalLayoutGroup verticalLayoutGroup = buttonParent.AddComponent<VerticalLayoutGroup>();
+            verticalLayoutGroup.childControlWidth = false;
+            verticalLayoutGroup.childForceExpandWidth = false;
+        }
         
-        var childrenInOrder = self.transform.Cast<Transform>()
+        var modButton = MenuAPI.CreateREPOButton("Mods", ConfigMenu.CreateModMenu, buttonParent, new Vector2(0f, 0f));
+        
+        var childrenInOrder = buttonParent.Cast<Transform>()
             .Where(transform => transform.name.Contains("Menu Button"))
             .OrderByDescending(transform => transform.localPosition.y).ToList();
 
         childrenInOrder.Insert(childrenInOrder.Count - 1, modButton.transform);
+
+        var lastButton = childrenInOrder[childrenInOrder.Count - 1];
+        modButton.transform.SetSiblingIndex(lastButton.GetSiblingIndex());
         
-        var yPosition = 224f;
+        var yPosition = 230f;
         foreach (var child in childrenInOrder)
         {
             child.localPosition = child.localPosition with { y = yPosition};
             yPosition -= 30;
         }
-            
+        
         orig.Invoke(self);
     }
         
