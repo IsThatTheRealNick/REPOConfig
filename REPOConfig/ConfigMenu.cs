@@ -29,7 +29,7 @@ internal sealed class ConfigMenu
         //Main Menu Button is created in 'Entry.MenuPageMain_StartHook'
         
         MenuAPI.AddElementToLobbyMenu(parent => {
-            var repoButton = MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(186f, 32f));
+            var repoButton = MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(152f, 60f));
             repoButton.labelTMP.fontSize = 28;
         });
         MenuAPI.AddElementToEscapeMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(126f, 86f)));
