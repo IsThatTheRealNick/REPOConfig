@@ -29,7 +29,7 @@ internal sealed class Entry : BaseUnityPlugin
     {
         var buttonParent = self.transform.Find("Buttons");
         if(!buttonParent.GetComponent<VerticalLayoutGroup>()){
-            VerticalLayoutGroup verticalLayoutGroup = buttonParent.AddComponent<VerticalLayoutGroup>();
+            var verticalLayoutGroup = buttonParent.AddComponent<VerticalLayoutGroup>();
             verticalLayoutGroup.childControlWidth = false;
             verticalLayoutGroup.childForceExpandWidth = false;
         }
@@ -42,7 +42,7 @@ internal sealed class Entry : BaseUnityPlugin
 
         childrenInOrder.Insert(childrenInOrder.Count - 1, modButton.transform);
 
-        var lastButton = childrenInOrder[childrenInOrder.Count - 1];
+        var lastButton = childrenInOrder[^1];
         modButton.transform.SetSiblingIndex(lastButton.GetSiblingIndex());
         
         var yPosition = 230f;
