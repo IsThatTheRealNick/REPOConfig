@@ -32,7 +32,7 @@ internal sealed class ConfigMenu
             var repoButton = MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(152f, 60f));
             repoButton.labelTMP.fontSize = 28;
         });
-        MenuAPI.AddElementToEscapeMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(126f, 86f)));
+        MenuAPI.AddElementToEscapeMenu(parent => MenuAPI.CreateREPOButton("Mods", CreateModMenu, parent, new Vector2(126f, 65f)));
     }
     
     internal static void CreateModMenu()
