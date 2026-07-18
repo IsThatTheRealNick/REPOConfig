@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using MenuLib;
 using MenuLib.MonoBehaviors;
+using REPOConfig.Strategies;
 using TMPro;
 using UnityEngine;
 
@@ -14,16 +14,29 @@ namespace REPOConfig;
 
 internal sealed class ConfigMenu
 {
-    private static readonly Dictionary<ConfigEntryBase, object> changedEntryValues = new();
+    private static readonly ConfigEntryStore configEntryStore = new();
     
-    private static readonly Dictionary<ConfigEntryBase, object> originalEntryValues = new();
+    private static readonly IDictionary<Type, IConfigEntryStrategy> configEntryStrategies = CreateStrategiesDictionary();
 
     internal static REPOButton lastClickedModButton;
 
     private static readonly List<REPOButton> currentModButtons = []; 
     
     private static bool hasPopupMenuOpened;
-    
+
+    private static Dictionary<Type, IConfigEntryStrategy> CreateStrategiesDictionary()
+    {
+        List<IConfigEntryStrategy> strategies =
+        [
+            new StringConfigEntryStrategy(),
+            new BooleanConfigEntryStrategy(),
+            new IntConfigEntryStrategy(),
+            new FloatConfigEntryStrategy()
+        ];
+        
+        return strategies.ToDictionary(s => s.TargetType, s => s);
+    }
+
     internal static void Initialize()
     {
         //Main Menu Button is created in 'Entry.MenuPageMain_StartHook'
@@ -37,7 +50,7 @@ internal sealed class ConfigMenu
     
     internal static void CreateModMenu()
     {
-        changedEntryValues.Clear();
+        configEntryStore.ChangedEntryValues.Clear();
         
         lastClickedModButton = null;
         
@@ -48,12 +61,12 @@ internal sealed class ConfigMenu
             if (hasPopupMenuOpened)
                 return false;
 
-            if (changedEntryValues.Count == 0)
+            if (configEntryStore.ChangedEntryValues.Count == 0)
                 return true;
             
             MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?", () => {
                 repoPopupPage.ClosePage(true);
-                changedEntryValues.Clear();
+                configEntryStore.ChangedEntryValues.Clear();
                 hasPopupMenuOpened = false;
             }, () => hasPopupMenuOpened = false);
 
@@ -80,7 +93,7 @@ internal sealed class ConfigMenu
         CreateModList(repoPopupPage);
         
         repoPopupPage.AddElement(parent => MenuAPI.CreateREPOButton("Back", () => {
-            if (changedEntryValues.Count == 0 || hasPopupMenuOpened)
+            if (configEntryStore.ChangedEntryValues.Count == 0 || hasPopupMenuOpened)
             {
                 repoPopupPage.ClosePage(true);
                 return;
@@ -90,7 +103,7 @@ internal sealed class ConfigMenu
                 () =>
                 {
                     repoPopupPage.ClosePage(true);
-                    changedEntryValues.Clear();
+                    configEntryStore.ChangedEntryValues.Clear();
                     hasPopupMenuOpened = false;
                 }, () => hasPopupMenuOpened = false);
             
@@ -122,7 +135,7 @@ internal sealed class ConfigMenu
                     if (lastClickedModButton == modButton)
                         return;
                     
-                    if (changedEntryValues.Count == 0)
+                    if (configEntryStore.ChangedEntryValues.Count == 0)
                     {
                         OpenPage();
                         return;
@@ -131,7 +144,7 @@ internal sealed class ConfigMenu
                     MenuAPI.OpenPopup("Unsaved Changes", Color.red, "You have unsaved changes, are you sure you want to exit?",
                         () =>
                         {
-                            changedEntryValues.Clear();
+                            configEntryStore.ChangedEntryValues.Clear();
                             OpenPage();
                             hasPopupMenuOpened = false;
                         }, () => hasPopupMenuOpened = false);
@@ -145,18 +158,18 @@ internal sealed class ConfigMenu
                         
                         var modPage = MenuAPI.CreateREPOPopupPage(modName, REPOPopupPage.PresetSide.Right, false, false, spacing: 5f);
                         modPage.scrollView.scrollSpeed = 3f;
-                        modPage.onEscapePressed = () =>  !hasPopupMenuOpened && changedEntryValues.Count == 0;
+                        modPage.onEscapePressed = () =>  !hasPopupMenuOpened && configEntryStore.ChangedEntryValues.Count == 0;
                         
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Save Changes", () =>
                             {
-                                var cachedEntries = changedEntryValues.ToArray();
-                                changedEntryValues.Clear();
+                                var cachedEntries = configEntryStore.ChangedEntryValues.ToArray();
+                                configEntryStore.ChangedEntryValues.Clear();
 
                                 foreach (var (key, value) in cachedEntries)
                                 {
                                     key.BoxedValue = value;
-                                    originalEntryValues[key] = value;
+                                    configEntryStore.OriginalEntryValues[key] = value;
                                 }
                                 
                             }, mainPageParent, new Vector2(370f, 18f));
@@ -165,10 +178,10 @@ internal sealed class ConfigMenu
                         modPage.AddElement(mainPageParent => {
                             MenuAPI.CreateREPOButton("Revert", () =>
                             {
-                                if (changedEntryValues.Count == 0)
+                                if (configEntryStore.ChangedEntryValues.Count == 0)
                                     return;
                                 
-                                changedEntryValues.Clear();
+                                configEntryStore.ChangedEntryValues.Clear();
                                 OpenPage();
                             }, mainPageParent, new Vector2(585f, 18f));
                         });
@@ -184,7 +197,7 @@ internal sealed class ConfigMenu
                                     foreach (var configEntryBase in configEntryBases)
                                         configEntryBase.BoxedValue = configEntryBase.DefaultValue;
 
-                                    changedEntryValues.Clear();
+                                    configEntryStore.ChangedEntryValues.Clear();
                                     OpenPage();
                                 }
                             }, scrollView);
@@ -227,233 +240,68 @@ internal sealed class ConfigMenu
                 var modName = FixNaming(entry.Definition.Key);
                 //var description = Entry.showDescriptions.Value ? entry.Description.Description.Replace("\n", string.Empty) : string.Empty;
 
-                originalEntryValues.Remove(entry);
-                originalEntryValues.Add(entry, entry.BoxedValue);
-                
-                switch (entry)
+                configEntryStore.OriginalEntryValues.Remove(entry);
+                configEntryStore.OriginalEntryValues.Add(entry, entry.BoxedValue);
+
+                if (configEntryStrategies.TryGetValue(entry.SettingType, out var strategy))
                 {
-                    case ConfigEntry<bool>:
-                    {
-                        modPage.AddElementToScrollView(scrollView =>
-                        {
-                            var repoToggle = MenuAPI.CreateREPOToggle(modName, b =>
-                            {
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && b == (bool) originalValue)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = b;
-                            }, scrollView, defaultValue: (bool)entry.BoxedValue);
-                            repoToggle.labelTMP.fontStyle = FontStyles.Normal;
-                            return repoToggle.rectTransform;
-                        });
-                        break;
-                    }
-                    case ConfigEntry<float>: {
-                        modPage.AddElementToScrollView(scrollView => {
-                            float min, max;
-                            var precision = 2;
-                            
-                            if (entry.Description.AcceptableValues is AcceptableValueRange<float> acceptableValueRange)
-                            {
-                                min = acceptableValueRange.MinValue;
-                                max = acceptableValueRange.MaxValue;
-                                
-                                precision = Mathf.Max(GetDecimalPlaces(min), GetDecimalPlaces(max), GetDecimalPlaces((float) entry.DefaultValue), 2);
-                            }
-                            else
-                            {
-                                var absoluteDefaultValue = Math.Abs((float) entry.BoxedValue);
+                    modPage.AddElementToScrollView(scrollView => strategy.Execute(
+                        scrollView,
+                        entry,
+                        new EntryParameters(modName, configEntryStore)
+                    ));
 
-                                if (absoluteDefaultValue == 0)
-                                    min = -(max = 100);
-                                else if (absoluteDefaultValue <= .001)
-                                    min = -(max = 10f);
-                                else if (absoluteDefaultValue <= .01)
-                                    min = -(max = 50f);
-                                else if (absoluteDefaultValue <= 100)
-                                    min = -(max = absoluteDefaultValue * 3f);
-                                else
-                                     min = -(max = absoluteDefaultValue * 2);
-                            }
+                    continue;
+                }
 
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, f => //description
-                            {
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && Math.Abs(f - (float) originalValue) < float.Epsilon)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = f;
-                            }, scrollView, defaultValue: (float)entry.BoxedValue, min: min, max: max, precision: precision);
-                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
-                            
-                            /*if (description.Length <= 43)
-                                return repoSlider.rectTransform;*/
-                            
-                            //repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
-                            //repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
-                                
-                            /*repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
-                            repoSlider.repoTextScroller.startWaitTime = 3f;
-
-                            repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
-
-
-                            return repoSlider.rectTransform;
-                        });
-                        break;
-                    }
-                    case ConfigEntry<int>: {
-                        modPage.AddElementToScrollView(scrollView => {
-                            int min;
-                            int max;
-                            
-                            if (entry.Description.AcceptableValues is AcceptableValueRange<int> acceptableValueRange)
-                            {
-                                min = acceptableValueRange.MinValue;
-                                max = acceptableValueRange.MaxValue;
-                            }
-                            else
-                            {
-                                var absoluteDefaultValue =  Math.Abs((int) entry.BoxedValue);
-
-                                min = absoluteDefaultValue switch
-                                {
-                                    0 => -(max = 100),
-                                    <= 100 => -(max = absoluteDefaultValue * 3),
-                                    _ => -(max = absoluteDefaultValue * 2)
-                                };
-                            }
-                            
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, i => //description
-                            {
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && i == (int) originalValue)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = i;
-                            }, scrollView, defaultValue: (int) entry.BoxedValue, min: min, max: max);
-                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
-                            
-                            /*if (description.Length <= 43)
-                                return repoSlider.rectTransform;*/
-                            
-                            /*repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
-                            repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
-                                
-                            repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
-                            repoSlider.repoTextScroller.startWaitTime = 3f;
-
-                            repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
-                            
-                            return repoSlider.rectTransform;
-                        });
-                        break;
-                    }
-                    case ConfigEntry<string> when entry.Description.AcceptableValues is AcceptableValueList<string> acceptableValueList: {
-                        modPage.AddElementToScrollView(scrollView => {
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, s => //description
-                            {
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && s == (string) originalValue)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = s;
-                            }, scrollView, acceptableValueList.AcceptableValues, (string)entry.BoxedValue);
-                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
-                            
-                            /*if (description.Length <= 43)
-                                return repoSlider.rectTransform;
-                            
-                            repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
-                            repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
-                                
-                            repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
-                            repoSlider.repoTextScroller.startWaitTime = 3f;
-
-                            repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
-                            
-                            return repoSlider.rectTransform;
-                        });
-                        break;
-                    }
-                    case ConfigEntry<string>:
-                    {
-                        modPage.AddElementToScrollView(scrollView =>
-                        {
-                            var defaultValue = (string) entry.DefaultValue;
-                            
-                            var repoInputField = MenuAPI.CreateREPOInputField(modName, s =>
-                            {
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && s == (string) originalValue)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = s;
-                            }, scrollView, Vector2.zero, false, !string.IsNullOrEmpty(defaultValue) ? defaultValue : "<NONE>", (string) entry.BoxedValue);
-                            repoInputField.labelTMP.fontStyle = repoInputField.inputStringSystem.inputTMP.fontStyle = FontStyles.Normal;
-                            
-                            return repoInputField.rectTransform;
-                        });
-                        break;
-                    }
-                    case not null when entry.SettingType.IsSubclassOf(typeof(Enum)):
-                    {
-                        var enumType = entry.SettingType;
-                        var values = Enum.GetNames(enumType);
-                        
-                        modPage.AddElementToScrollView(scrollView =>
-                        {
-                            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, i => //description
-                            {
-                                var enumValue = Enum.Parse(enumType, values[i]);
-                                
-                                if (originalEntryValues.TryGetValue(entry, out var originalValue) && enumValue == originalValue)
-                                {
-                                    changedEntryValues.Remove(entry);
-                                    return;
-                                }
-                                
-                                changedEntryValues[entry] = enumValue;
-                            }, scrollView, values, entry.BoxedValue.ToString());
-                            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
-                            
-                            /*if (description.Length <= 43)
-                                return repoSlider.rectTransform;
-                            
-                            repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
-                            repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
-                                
-                            repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
-                            repoSlider.repoTextScroller.startWaitTime = 3f;
-
-                            repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
-                            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
-                            
-                            return repoSlider.rectTransform;
-                        });
-                        break;
-                    }
+                if (entry.SettingType.IsSubclassOf(typeof(Enum)))
+                {
+                    HandleEnumEntry(modPage, modName, entry);
                 }
             }
             
             modPage.AddElementToScrollView(scrollView => MenuAPI.CreateREPOSpacer(scrollView, size: new Vector2(0, 20)).rectTransform);   
         }
     }
-    
+
+    private static void HandleEnumEntry(REPOPopupPage modPage, string modName, ConfigEntryBase entry)
+    {
+        var enumType = entry.SettingType;
+        var values = Enum.GetNames(enumType);
+
+        modPage.AddElementToScrollView(scrollView =>
+        {
+            var repoSlider = MenuAPI.CreateREPOSlider(modName, string.Empty, i => //description
+            {
+                var enumValue = Enum.Parse(enumType, values[i]);
+
+                if (configEntryStore.OriginalEntryValues.TryGetValue(entry, out var originalValue) &&
+                    enumValue == originalValue)
+                {
+                    configEntryStore.ChangedEntryValues.Remove(entry);
+                    return;
+                }
+
+                configEntryStore.ChangedEntryValues[entry] = enumValue;
+            }, scrollView, values, entry.BoxedValue.ToString());
+            repoSlider.descriptionTMP.fontStyle = repoSlider.labelTMP.fontStyle = FontStyles.Normal;
+
+            /*if (description.Length <= 43)
+                return repoSlider.rectTransform;
+
+            repoSlider.descriptionTMP.maxVisibleCharacters = repoSlider.repoTextScroller.maxCharacters = 43;
+            repoSlider.repoTextScroller.scrollingSpeedInSecondsPerCharacter = Entry.descriptionScrollSpeed.Value;
+
+            repoSlider.repoTextScroller.endWaitTime = repoSlider.repoTextScroller.initialWaitTime = 5f;
+            repoSlider.repoTextScroller.startWaitTime = 3f;
+
+            repoSlider.descriptionTMP.alignment = TextAlignmentOptions.Left;
+            modPage.StartCoroutine(repoSlider.repoTextScroller.Animate());*/
+
+            return repoSlider.rectTransform;
+        });
+    }
+
     private static Dictionary<string, ConfigEntryBase[]> GetModConfigEntries()
     {
         var repoConfigs = new Dictionary<string, ConfigEntryBase[]>();
@@ -487,14 +335,5 @@ internal sealed class ConfigMenu
         input = Regex.Replace(input, @"([A-Z]\.)\s([A-Z]\.)", "$1$2");
 
         return input.Trim();
-    }
-
-    private static int GetDecimalPlaces(float value)
-    {
-        var valueAsString = value.ToString(CultureInfo.InvariantCulture);
-
-        var decimalPoint = valueAsString.IndexOf('.');
-
-        return decimalPoint == -1 ? 0 : valueAsString[(decimalPoint + 1)..].Length;
     }
 }
